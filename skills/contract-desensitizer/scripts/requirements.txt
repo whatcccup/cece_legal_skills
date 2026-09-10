@@ -1,0 +1,12 @@
+# 合同脱敏工具 —— 全流程所需依赖
+# 全部为本地解析库与渲染库，运行时不联网
+#
+# 识别阶段（contract_sensitive_detector.py）
+python-docx>=1.1.0      # .docx 解析（段落 / 表格 / 页眉页脚 / 文本框）
+pdfplumber>=0.11.0      # .pdf 解析，提供词级坐标（供 PDF 改写用）
+pypdf>=4.0.0            # pdfplumber 缺失时的降级方案（无坐标）
+
+# 改写阶段（contract_redactor.py）
+reportlab>=4.0.0        # 输出 PDF：合成新页 + 写掩码文字
+pypdfium2>=4.0.0        # PDF 栅格化（用于真删文本层，是 PDF 脱敏的关键步骤）
+Pillow>=10.0.0          # 在栅格化位图上画白块

@@ -26,6 +26,15 @@
 
 ![合同脱敏左右对比](contract_desensitizer/docs/images/03-左右对比.png)
 
+### [skills/contract-desensitizer](skills/contract-desensitizer/) —— 同一套能力的 Skill 版
+
+把上面的脱敏引擎打包成标准 `SKILL.md` 技能包，可被 WorkBuddy / Claude Code / Cursor / Codex 等
+支持 Agent Skills 的客户端直接安装，安装后对 AI 说「帮我给这份合同脱敏」即可调用。
+
+- slug：`contract-desensitizer-offline`
+- 已发布到 [SkillHub](https://skillhub.cn)（`skillhub install contract-desensitizer-offline`）
+- 目录内自带源码、启动器、规则清单与回归测试，与 `contract_desensitizer/` 主工程保持同步
+
 ---
 
 ## 许可
