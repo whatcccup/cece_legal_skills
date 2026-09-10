@@ -89,8 +89,11 @@ Claude Code、Cursor、Codex 等支持 Agent Skills 的客户端直接安装，�
 「帮我给这份合同脱敏」即可调用：
 
 ```bash
-skillhub install contract-desensitizer-offline      # 需先装 SkillHub CLI：skillhub.cn
+skillhub install contract-desensitizer-offline --namespace user_47430f88
 ```
+
+SkillHub 页面：<https://skillhub.cn/@user_47430f88/contract-desensitizer-offline>
+（需先装 CLI：`curl -fsSL https://skillhub.cn/install/install.sh | bash -s -- --cli-only`）
 
 ---
 
