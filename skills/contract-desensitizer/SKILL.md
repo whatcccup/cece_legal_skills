@@ -4,7 +4,7 @@ slug: contract-desensitizer-offline
 displayName: 合同脱敏助手（离线可逆）
 display_name: 合同脱敏助手（离线可逆）
 display_name_en: Contract Desensitizer (Offline Reversible)
-version: "1.0.0"
+version: "1.0.1"
 summary: >-
   本地离线合同脱敏与还原工具：识别姓名、身份证、手机号、座机、统一社会信用代码、银行账号、金额、地址等敏感信息，
   替换为「同一实体全文共用一个编号」的可逆占位符，支持一键还原成原文，docx/pdf/txt 全格式，不联网、不调大模型。
