@@ -1,9 +1,11 @@
 # 启动器说明
 
-| 平台 | 文件 | 用法 |
-|---|---|---|
-| macOS / Linux | `start.sh` | 双击（macOS 可改名为 `启动.command` 后双击）或终端 `bash start.sh` |
-| Windows | `start.vbs` | 双击，无黑窗；想看日志就双击 `start.bat` |
+跨平台只有一个入口，Windows / macOS / Linux 通用：
+
+```bash
+python scripts/launcher/start.py                 # 启动并自动打开浏览器
+python scripts/launcher/start.py --foreground    # 前台运行，日志留在终端，Ctrl-C 结束
+```
 
 启动器会自动完成：
 
@@ -14,4 +16,5 @@
 
 停止：点击网页右上角「退出」，或在终端按 Ctrl-C（前台模式）。
 
-> macOS 首次双击若提示「无法验证开发者」：右键该文件 → 打开 → 确认即可。
+想做桌面快捷方式：macOS 把 `python <绝对路径>/start.py` 存成 `.command` 文件，
+Windows 存成 `.bat`——这类文件放在技能包里会被平台上架校验拦截，所以请在你自己电脑上创建。

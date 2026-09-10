@@ -90,8 +90,7 @@ python3 -m venv .venv
 **Web 界面**（推荐给非技术用户）：
 
 ```bash
-bash "$SKILL_DIR/scripts/launcher/start.sh"        # macOS / Linux，自动开浏览器
-# Windows：双击 scripts\launcher\start.vbs
+python "$SKILL_DIR/scripts/launcher/start.py"        # Windows / macOS / Linux 通用，自动开浏览器
 # 或手动：.venv/bin/python contract_app_server.py --host 127.0.0.1 --port 18800
 ```
 
@@ -210,7 +209,7 @@ contract-desensitizer/
 │   ├── contract_app_server.py           本地 Web 服务（127.0.0.1:18800）
 │   ├── contract_app_ui.py               Web 界面模板层
 │   ├── requirements.txt
-│   └── launcher/                        start.sh / start.bat / start.vbs
+│   └── launcher/                        start.py（跨平台启动器）+ 说明
 ├── references/
 │   ├── 脱敏规则清单.md                   规则单一事实源
 │   └── 使用说明.md                       完整安装与使用教程
@@ -221,8 +220,11 @@ contract-desensitizer/
 
 ## 常见问题
 
-**Q：macOS 双击提示"无法验证开发者"？**
-右键文件 → 打开 → 确认，一次即可。
+**Q：能不能做成双击图标？**
+GitHub 仓库里的完整版带 macOS `.app` 与 Windows `.vbs` 图标；技能包只保留跨平台的
+`start.py`（上架平台会拦截 `.bat` / `.vbs` / `.sh` 这类可执行文件）。
+想在本地做快捷方式：macOS 把 `python <绝对路径>/start.py` 存成 `.command`，
+Windows 存成 `.bat`，首次运行若被系统拦截，右键 → 打开 → 确认即可。
 
 **Q：端口 18800 被占用？**
 启动器会自动结束旧服务；也可以手动 `lsof -nP -tiTCP:18800 | xargs kill`。
