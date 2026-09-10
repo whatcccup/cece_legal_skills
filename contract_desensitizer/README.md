@@ -342,4 +342,4 @@ contract_desensitizer/
 
 ## 许可
 
-[MIT](LICENSE) © 2026 whatcccup
+[MIT](../LICENSE) © 2026 whatcccup
