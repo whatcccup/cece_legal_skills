@@ -6,7 +6,7 @@
 
 - **完全离线** —— 不调用大模型、不上传文件、不产生外联流量；
 - **结果可复现** —— 依靠格式规则与国标校验位，而不是语义猜测，因此同样的输入永远得到同样的输出；
-- **双击即用** —— 每个项目都带 macOS / Windows 启动器，不做技术的人也能用。
+- **不折腾就能用** —— 每个项目都提供可一键安装的 AI Skill，或 macOS / Windows 双击启动器，不做技术的人也能用。
 
 ---
 
@@ -22,7 +22,7 @@
 - 同一个实体整篇共用一个编号；企业全称与简称自动归并
 - 上传 → 左右对比 → 逐个确认 → 下载，全程在浏览器里点点点
 
-同一套引擎还打包成了标准 AI Skill，已上架 [SkillHub](https://skillhub.cn/@user_47430f88/contract-desensitizer-offline)：
+**推荐装法：装成 AI Skill，环境都不用管**（已上架 [SkillHub](https://skillhub.cn/@user_47430f88/contract-desensitizer-offline)）
 
 ```bash
 curl -fsSL https://skillhub.cn/install/install.sh | bash -s -- --cli-only   # 装 CLI（仅一次）
@@ -30,9 +30,13 @@ skillhub install contract-desensitizer-offline --namespace user_47430f88 --dir ~
 ```
 
 （`--dir` 换成你客户端的 skills 目录：Claude Code `~/.claude/skills`、Cursor `~/.cursor/skills`、Codex `~/.codex/skills`。）
-装好后对 AI 说「帮我给这份合同脱敏」即可，无需手动部署。
+也可以直接把这句话发给 AI Agent：
 
-**[→ 查看安装与使用教程](contract_desensitizer/README.md)**
+> **请用 SkillHub CLI 安装技能 `contract-desensitizer-offline`（`skillhub install contract-desensitizer-offline --namespace user_47430f88`，`--dir` 指向你自己的 skills 目录），安装成功后确认你会用它做合同脱敏：装依赖、启动本地服务、告诉我访问地址，全程不要修改技能里的源码。**
+
+装好后对 AI 说「帮我给这份合同脱敏」即可。新技能审核期间，可先用下面的完整版。
+
+**[→ 完整版安装与使用教程（含 GitHub 双击图标版）](contract_desensitizer/README.md)**
 
 ![合同脱敏左右对比](contract_desensitizer/docs/images/03-左右对比.png)
 
@@ -42,8 +46,9 @@ skillhub install contract-desensitizer-offline --namespace user_47430f88 --dir ~
 支持 Agent Skills 的客户端直接安装，安装后对 AI 说「帮我给这份合同脱敏」即可调用。
 
 - slug：`contract-desensitizer-offline`
-- 已发布到 [SkillHub](https://skillhub.cn)（`skillhub install contract-desensitizer-offline`）
-- 目录内自带源码、启动器、规则清单与回归测试，与 `contract_desensitizer/` 主工程保持同步
+- 已发布到 [SkillHub](https://skillhub.cn/@user_47430f88/contract-desensitizer-offline)
+  （`skillhub install contract-desensitizer-offline --namespace user_47430f88 --dir <你的 skills 目录>`）
+- 目录内自带源码、跨平台启动器（`start.py`）、规则清单与回归测试，与 `contract_desensitizer/` 主工程保持同步
 
 ---
 

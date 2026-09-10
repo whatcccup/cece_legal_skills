@@ -38,15 +38,38 @@
 
 ## 安装
 
-### 方案 A（推荐）：把下面这一句话发给 AI Agent
+### 方案 A（推荐）：装成 AI Skill，环境都不用管
+
+把下面这一句话发给 AI Agent（WorkBuddy、Claude Code、Cursor、Codex 等支持技能的客户端都行）：
+
+> **请用 SkillHub CLI 安装技能 `contract-desensitizer-offline`（`skillhub install contract-desensitizer-offline --namespace user_47430f88`，`--dir` 指向你自己的 skills 目录），安装成功后确认你会用它做合同脱敏：装依赖、启动本地服务、告诉我访问地址，全程不要修改技能里的源码。**
+
+也可以自己敲命令（`--dir` 必须指向客户端自己的技能目录，默认装到 `./skills/` 客户端识别不到）：
+
+```bash
+# 1) 先装 SkillHub CLI（仅一次）
+curl -fsSL https://skillhub.cn/install/install.sh | bash -s -- --cli-only
+export PATH="$HOME/.local/bin:$PATH"
+
+# 2) 安装
+skillhub install contract-desensitizer-offline --namespace user_47430f88 \
+         --dir ~/.workbuddy/skills          # WorkBuddy
+# Claude Code 用 ~/.claude/skills，Cursor 用 ~/.cursor/skills，Codex 用 ~/.codex/skills
+```
+
+SkillHub 页面：<https://skillhub.cn/@user_47430f88/contract-desensitizer-offline>
+
+装好后直接对 AI 说「帮我给这份合同脱敏」，剩下的它干。
+技能包自带启动器 `scripts/launcher/start.py`，依赖没装会自动建虚拟环境补齐。
+
+> 新上架技能处于审核队列，审核通过后搜索与安装才可用；审核期间请先用方案 B 或 C。
+
+### 方案 B：GitHub 完整版（带双击图标）
 
 > **请从 GitHub 仓库 `https://github.com/whatcccup/cece_legal_skills` 下载 `contract_desensitizer` 子目录到本地（例如 `~/Documents/contract_desensitizer`），用 Python 3 创建虚拟环境并安装 `requirements.txt` 里的全部依赖，然后确认我可以双击启动器（macOS 为 `launcher/mac/Contract_Redactor.app`，Windows 为 `launcher/windows/Contract_Redactor.vbs`）打开 `http://127.0.0.1:18800/` 完成合同脱敏，全程不要修改源码，装好后告诉我启动方式。**
 
 支持 WorkBuddy、Claude Code、Cursor、Codex 等任何能读写本地文件的 AI Agent。
-装完你会得到一个可以双击的图标，之后不再需要任何命令行。
-
-> 装的是**完整版**（含 macOS `.app` / Windows `.vbs` 图标）。
-> 如果你的 Agent 支持技能市场，也可以直接用方案 C，一行命令装好、连环境都不用管。
+装完你会得到一个可以双击的图标，之后不再需要任何命令行；比起方案 A 多了 macOS `.app` / Windows `.vbs` 图标。
 
 <details>
 <summary>如果 Agent 需要更明确的步骤（备选 Prompt）</summary>
@@ -55,7 +78,7 @@
 
 </details>
 
-### 方案 B：手动安装
+### 方案 C：手动安装
 
 需要 **Python 3.9+**（已在 Python 3.13 上完整验证）与 Google Chrome（可选，用于应用窗口模式）。
 
@@ -85,35 +108,15 @@ python3 -m venv .venv
 | `pypdfium2` | PDF 栅格化（**真正清掉 PDF 文本层**的关键步骤） |
 | `Pillow` | 在栅格化位图上绘制遮罩 |
 
-### 方案 C：作为 AI Skill 安装（不用管环境，推荐给不想碰命令行的人）
-
-同一套引擎打包成了标准 Skill，已上架 SkillHub。装好后直接对 AI 说
-「帮我给这份合同脱敏」即可，**环境、依赖、启动都由 Agent 处理**。
-
-SkillHub 页面：<https://skillhub.cn/@user_47430f88/contract-desensitizer-offline>
-
-```bash
-# 1) 先装 SkillHub CLI（仅一次）
-curl -fsSL https://skillhub.cn/install/install.sh | bash -s -- --cli-only
-export PATH="$HOME/.local/bin:$PATH"
-
-# 2) 安装到你的 Agent 技能目录（--dir 必须指向客户端自己的 skills 目录）
-skillhub install contract-desensitizer-offline --namespace user_47430f88 \
-         --dir ~/.workbuddy/skills          # WorkBuddy
-# Claude Code 用 ~/.claude/skills，Cursor 用 ~/.cursor/skills，Codex 用 ~/.codex/skills
-```
-
-也可以把这句话发给 AI Agent：
-
-> **请用 SkillHub CLI 安装技能 `contract-desensitizer-offline`（`skillhub install contract-desensitizer-offline --namespace user_47430f88`，`--dir` 指向你自己的 skills 目录），安装成功后确认你会用它做合同脱敏：装依赖、启动本地服务、告诉我访问地址，全程不要修改技能里的源码。**
-
-> 注：新上架技能处于审核队列，审核通过后搜索与安装才可用；审核期间请先用方案 A 或 B。
-
 ---
 
 ## 使用
 
-### 方式一：双击启动器（推荐）
+> **走方案 A（技能版）的同学看这里**：启动入口是
+> `python scripts/launcher/start.py`（Windows / macOS / Linux 通用，自动装依赖、自动开浏览器），
+> 下面的 `.app` / `.vbs` 图标只有方案 B 的完整版才有。
+
+### 方式一：双击启动器（推荐，完整版）
 
 **首次使用前**（仅 macOS，若被系统拦截）：
 
