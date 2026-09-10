@@ -43,6 +43,10 @@ tags:
 把合同里的敏感信息**一键替换成可逆占位符**，需要时再**一键还原**成原文。
 面向法务、律师、行政、HR 等需要把合同发给外部的场景。
 
+> 安装：`skillhub install contract-desensitizer-offline --namespace user_47430f88 --dir <你的 skills 目录>`
+> （WorkBuddy `~/.workbuddy/skills`、Claude Code `~/.claude/skills`、Cursor `~/.cursor/skills`、Codex `~/.codex/skills`；
+> 默认会装到 `./skills/`，客户端识别不到，所以 `--dir` 不能省。）
+
 ## 为什么用它，而不是让大模型直接改
 
 | 维度 | 本技能 | 让大模型通读改写 |
