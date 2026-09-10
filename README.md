@@ -22,12 +22,14 @@
 - 同一个实体整篇共用一个编号；企业全称与简称自动归并
 - 上传 → 左右对比 → 逐个确认 → 下载，全程在浏览器里点点点
 
-同一套引擎还打包成了标准 AI Skill，已在 [SkillHub](https://skillhub.cn/@user_47430f88/contract-desensitizer-offline) 上架：
+同一套引擎还打包成了标准 AI Skill，已上架 [SkillHub](https://skillhub.cn/@user_47430f88/contract-desensitizer-offline)：
 
 ```bash
-skillhub install contract-desensitizer-offline --namespace user_47430f88
+curl -fsSL https://skillhub.cn/install/install.sh | bash -s -- --cli-only   # 装 CLI（仅一次）
+skillhub install contract-desensitizer-offline --namespace user_47430f88 --dir ~/.workbuddy/skills
 ```
 
+（`--dir` 换成你客户端的 skills 目录：Claude Code `~/.claude/skills`、Cursor `~/.cursor/skills`、Codex `~/.codex/skills`。）
 装好后对 AI 说「帮我给这份合同脱敏」即可，无需手动部署。
 
 **[→ 查看安装与使用教程](contract_desensitizer/README.md)**
