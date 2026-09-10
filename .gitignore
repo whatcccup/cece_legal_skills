@@ -1,0 +1,44 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ---- 虚拟环境 ----
+.venv/
+venv/
+env/
+ENV/
+
+# ---- 运行时产物（会话数据 / 报告 / 脱敏还原结果）----
+contract_app_sessions/
+sensitive_reports/
+*.mapping.json
+*_脱敏.*
+*_还原.*
+*.redaction.log
+*.restore.log
+*.sensitive.json
+*.sensitive.csv
+*.selection.json
+*.annotated.txt
+*.masked.txt
+*.review.html
+
+# ---- 编辑器 / 系统 ----
+.DS_Store
+._*
+.Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*~
+
+# ---- 本地工作区（记忆与技能，不发布）----
+.workbuddy/
