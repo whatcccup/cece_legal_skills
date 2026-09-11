@@ -1,15 +1,22 @@
+# ============================================================
+# cece_legal_skills · 忽略规则
+# 原则：定稿进库（01/02/03 + 各 README），产物与临时不进库（90 只进脚本、99 全忽略）
+# ============================================================
+
+# ---- 构建产物：脚本入库，zip / 日志不入库 ----
+**/90-build/*.zip
+**/90-build/*.log
+**/90-build/_pack_tmp/
+
+# ---- 临时内容：整个 99-temp 忽略，只保留说明文件 ----
+**/99-temp/*
+!**/99-temp/README.md
+
 # ---- Python ----
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.Python
-build/
-dist/
-*.egg-info/
-.eggs/
-
-# ---- 虚拟环境 ----
 .venv/
 venv/
 env/
@@ -17,6 +24,7 @@ ENV/
 
 # ---- 运行时产物（会话数据 / 报告 / 脱敏还原结果）----
 contract_app_sessions/
+sessions/
 sensitive_reports/
 *.mapping.json
 *_脱敏.*
@@ -40,5 +48,5 @@ desktop.ini
 *.swp
 *~
 
-# ---- 本地工作区（记忆与技能，不发布）----
+# ---- 本地工作区（记忆与项目级技能，不发布）----
 .workbuddy/
