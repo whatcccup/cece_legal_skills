@@ -1,5 +1,7 @@
 # cece_legal_skills
 
+> **公众号读者入口**：[合同脱敏工具与快速开始](contract_desentizier/README.md)。原目录 [contract_desensitizer](contract_desensitizer/) 和旧仓库 [cece_legal_ai_skills](https://github.com/whatcccup/cece_legal_ai_skills) 均保留导航入口。
+
 法务 / 法律场景的**离线小工具**集合：不联网、不上传、可逆，装好就能用。
 
 <p align="center">
