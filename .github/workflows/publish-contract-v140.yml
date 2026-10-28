@@ -1,0 +1,63 @@
+name: Publish contract tool v1.4.0 assets
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Verify official installers and publish the complete release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PYCODE'
+          import os,json,urllib.request,hashlib,time
+          from pathlib import Path
+          BASE='https://api.github.com/repos/whatcccup/cece_legal_skills'
+          TOKEN=os.environ['GH_TOKEN']
+          RELEASE_ID=426591427
+          FILES=[{'name': 'ContractRedactor-Setup-1.4.0.exe', 'bytes': 29145480, 'sha256': '31397dacf5bf897391eb67128ddc84cd2a6137e1bd80a2b313a5288c80dff68e'}, {'name': 'contract-desensitizer-mac-arm64-1.4.0.zip', 'bytes': 50848515, 'sha256': '937d231f42b663db2dec9050eb991363d0e465d69ee7634f5f4cb26324e2707f'}, {'name': 'contract-desensitizer-mac-x86_64-1.4.0.zip', 'bytes': 51787989, 'sha256': '24b6af21f81fd8be257eaf4be74618e1c77c71af719ecda74e027c983e193071'}, {'name': 'contract-desensitizer-source-1.4.0.zip', 'bytes': 2212204, 'sha256': 'd4fbf266d39532711b03816d870934dc1b7fe1e7ef8b366416c1e6018de82918'}]
+
+          def api(path,method='GET',data=None,ctype='application/json'):
+              if data is not None and ctype=='application/json': data=json.dumps(data).encode()
+              req=urllib.request.Request(path if path.startswith('https://') else BASE+path,data=data,method=method,headers={'Authorization':'Bearer '+TOKEN,'User-Agent':'contract-redactor-release','Accept':'application/vnd.github+json','Content-Type':ctype})
+              with urllib.request.urlopen(req,timeout=180) as response:
+                  body=response.read()
+              return json.loads(body) if body else None
+
+          release=api('/releases/'+str(RELEASE_ID))
+          assert release['tag_name']=='v1.4.0'
+          existing={a['name']:a for a in api('/releases/'+str(RELEASE_ID)+'/assets')}
+          upload_url=release['upload_url'].split('{')[0]
+          for item in FILES:
+              a=existing.get(item['name'])
+              if a and a['state']=='uploaded':
+                  assert a['size']==item['bytes'] and a['digest']=='sha256:'+item['sha256']
+                  print('Already verified:',item['name'],flush=True);continue
+              if a:
+                  assert a['state']=='starter'
+                  api('/releases/assets/'+str(a['id']),'DELETE')
+              target=Path('/tmp')/item['name']
+              url='https://legaltechcc.com/assets/downloads/'+item['name']
+              digest=hashlib.sha256();count=0
+              with urllib.request.urlopen(url,timeout=180) as response,target.open('wb') as out:
+                  while True:
+                      chunk=response.read(1024*1024)
+                      if not chunk: break
+                      out.write(chunk);digest.update(chunk);count+=len(chunk)
+                      if count%(5*1024*1024)==0:print('Downloaded',item['name'],count,flush=True)
+              assert count==item['bytes'] and digest.hexdigest()==item['sha256']
+              a=api(upload_url+'?name='+item['name'],'POST',target.read_bytes(),'application/octet-stream')
+              assert a['state']=='uploaded' and a['digest']=='sha256:'+item['sha256']
+              print('Uploaded and verified:',item['name'],flush=True)
+          all_assets={a['name']:a for a in api('/releases/'+str(RELEASE_ID)+'/assets')}
+          assert set(all_assets)=={a['name'] for a in FILES}
+          for item in FILES:
+              a=all_assets[item['name']]
+              assert a['state']=='uploaded' and a['size']==item['bytes'] and a['digest']=='sha256:'+item['sha256']
+          result=api('/releases/'+str(RELEASE_ID),'PATCH',{'draft':False,'make_latest':'true'})
+          assert not result['draft']
+          print('Published:',result['html_url'],flush=True)
+          PYCODE
