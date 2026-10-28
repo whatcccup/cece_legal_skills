@@ -3,10 +3,10 @@
 # Contract_Redactor.app 的可执行文件
 #
 # 双击 App 之后：
-#   1. 结束上一次的服务进程 / 关闭上一次的应用窗口（释放端口 18800）
+#   1. 检查端口，不结束占用者
 #   2. 启动本地服务（完全离线，仅监听 127.0.0.1）
 #   3. 用 Chrome 的「应用模式」窗口打开 http://127.0.0.1:18800/
-#   4. 本进程随即退出，服务在后台常驻；再次双击即可重启
+#   4. 本进程退出，服务在后台常驻；重复启动会提示端口占用
 #
 # 真正的逻辑在同包的 Resources/launch.sh 中（放在包内，避免任何路径 / 权限问题）。
 # ---------------------------------------------------------------------------
@@ -34,4 +34,17 @@ if [ -z "$SCRIPT" ]; then
 fi
 
 chmod +x "$SCRIPT" 2>/dev/null || true
-exec /bin/bash "$SCRIPT"
+ERROR_FILE="$(mktemp -t contract-launch-error)"
+/bin/bash "$SCRIPT" 2>"$ERROR_FILE"
+result=$?
+if [ "$result" -ne 0 ]; then
+    message="$(tail -n 12 "$ERROR_FILE")"
+    [ -n "$message" ] || message="启动失败。请双击最外层的启动排错.command查看具体错误和README中的处理步骤。"
+    /usr/bin/osascript - "$message" <<'APPLESCRIPT'
+on run argv
+  display alert "合同脱敏工具启动失败" message (item 1 of argv) as critical
+end run
+APPLESCRIPT
+fi
+rm -f "$ERROR_FILE"
+exit "$result"

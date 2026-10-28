@@ -74,7 +74,7 @@ from contract_sensitive_detector import (
 
 # --------------------------------------------------------------------- 常量 --
 
-__version__ = "1.0.0"
+__version__ = "1.2.1"
 ENGINE_NAME = "contract_redactor"
 
 
@@ -157,207 +157,27 @@ class DocxRedactor(BaseRedactor):
     W_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
     def rewrite(self, dst: str) -> Dict[str, Any]:
-        # 拷贝原文件到 dst，再就地修改
-        shutil.copyfile(self.source, dst)
-
-        try:
-            from docx import Document as DocxDocument  # type: ignore
-            from docx.oxml.ns import qn
-        except ImportError as exc:
-            raise RuntimeError("改写 docx 需要 python-docx") from exc
-
-        doc = DocxDocument(dst)
-        # 收集所有段落（含正文 + 页眉页脚），按 detector 的 block 顺序对齐
-        detector_doc = D.extract_docx(self.source, include_headers=True)
-        block_texts = [b.text.rstrip("\n") for b in detector_doc.blocks]
-
-        # 在 self.full_text 中定位每个 block 的精确 [start, end)
-        full = self.full_text
-        block_spans: List[Tuple[int, int]] = []
-        cursor = 0
-        for txt in block_texts:
-            i = full.find(txt, cursor)
-            if i < 0:
-                i = full.find(txt)
-                if i < 0:
-                    # 漂移：用启发式估算位置（粗略即可，跳过）
-                    block_spans.append((-1, -1))
-                    continue
-            block_spans.append((i, i + len(txt)))
-            cursor = i + len(txt)
-
-        # 把 ops 按 block 分类，并转换成本 block 内偏移
-        ops_by_block: Dict[int, List[RedactOp]] = {}
-        skipped: List[RedactOp] = []
+        from docx_text import DocxText, paragraph_map, replace_ranges
+        package = DocxText(self.source)
+        texts = [paragraph_map(p)[0].rstrip("\n") for _, p in package.entries]
+        if "\n".join(texts) != self.full_text:
+            raise RuntimeError("识别与改写文本不一致，已停止导出")
+        spans = []
+        start = 0
+        for text in texts:
+            spans.append((start, start+len(text))); start += len(text)+1
+        grouped = {}
         for op in self.ops:
-            placed = False
-            for bi, (bs, be) in enumerate(block_spans):
-                if bs < 0:
-                    continue
-                if op.start >= bs and op.end <= be:
-                    op_local = RedactOp(
-                        start=op.start - bs,
-                        end=op.end - bs,
-                        type_id=op.type_id, label=op.label,
-                        severity=op.severity, confidence=op.confidence,
-                        value=op.value, replacement=op.replacement,
-                        location=op.location, page=op.page, bbox=op.bbox,
-                    )
-                    ops_by_block.setdefault(bi, []).append(op_local)
-                    placed = True
+            for i, (start, end) in enumerate(spans):
+                if start <= op.start < op.end <= end:
+                    grouped.setdefault(i, []).append((op.start-start, op.end-start, op.replacement, op.value))
                     break
-            if not placed:
-                skipped.append(op)
-
-        # 段落元素列表（与 detector 的 block 顺序对齐）
-        # detector 在 extract_docx 里**跳过空段落**，所以这里也要跳过，
-        # 否则 paragraph index 会对不上 detector 的 block index。
-        para_seq: List[Any] = []
-        for p in doc.element.body.iter(qn("w:p")):
-            text = "".join(t.text or "" for t in p.iter(self.W_NS + "t"))
-            if text.strip():
-                para_seq.append(p)
-        for sec in doc.sections:
-            for part in (sec.header, sec.footer):
-                try:
-                    for p in part._element.iter(qn("w:p")):
-                        text = "".join(t.text or "" for t in p.iter(self.W_NS + "t"))
-                        if text.strip():
-                            para_seq.append(p)
-                except Exception:
-                    pass
-
-        applied: List[RedactOp] = []
-        for bi, ops in ops_by_block.items():
-            if bi >= len(para_seq):
-                skipped.extend(ops)
-                continue
-            ok = self._replace_in_paragraph(para_seq[bi], block_texts[bi], ops)
-            applied.extend(ok)
-
-        # 段落级 _replace_in_paragraph 已经写回 .text，最后保存
-        doc.save(dst)
-        return {
-            "applied": len(applied),
-            "skipped": len(skipped) + (len(self.ops) - len(applied) - len(skipped)),
-        }
-
-    # ---- 段落内字符级回填 ----
-    def _replace_in_paragraph(self, para_elem, block_text: str,
-                              ops: List[RedactOp]) -> List[RedactOp]:
-        """在段落 para_elem 上把 ops 应用进去（按字符 offset）。"""
-        ts = list(para_elem.iter(self.W_NS + "t"))
-        if not ts:
-            return []
-
-        # 段落纯文本
-        para_text = "".join(t.text or "" for t in ts)
-        # 漂移容忍：若不一致，取最长公共前缀
-        if para_text != block_text:
-            common = 0
-            while (common < min(len(para_text), len(block_text))
-                   and para_text[common] == block_text[common]):
-                common += 1
-            if common == 0:
-                return []
-            # 把 block_text 截到与 para_text 的公共部分
-            # ops 也需要重新 clamp（粗略处理：跳过超出范围的 op）
-        # 计算字符 offset → (t_index, char_offset_in_t)
-        # 这里我们用一个简单的「字符 → t 节点」映射
-        char_map: List[Tuple[int, int]] = []  # 每个字符对应的 (ti, j)
-        for ti, t in enumerate(ts):
-            s = t.text or ""
-            for j in range(len(s)):
-                char_map.append((ti, j))
-
-        applied: List[RedactOp] = []
-        # 从后往前处理，避免前面的 offset 偏移影响后面的判断
-        ops_sorted = sorted(ops, key=lambda o: o.start, reverse=True)
-        # 先把每个 <w:t> 的字符切成 list，便于字符级切片
-        pieces: List[List[str]] = [list(t.text or "") for t in ts]
-
-        for op in ops_sorted:
-            if op.end > len(char_map):
-                continue
-            if op.start < 0:
-                continue
-            # 把 [start, end) 切成「若干连续段」，每段都属于同一个 <w:t>
-            segments: List[Tuple[int, int, int]] = []  # (ti, l, r) — 在 ts[ti] 中的字符范围
-            cur_ti = char_map[op.start][0]
-            seg_l = char_map[op.start][1]
-            seg_r = seg_l
-            for g in range(op.start, op.end):
-                ti, j = char_map[g]
-                if ti != cur_ti:
-                    segments.append((cur_ti, seg_l, seg_r + 1))
-                    cur_ti = ti
-                    seg_l = j
-                    seg_r = j
-                else:
-                    seg_r = j
-            segments.append((cur_ti, seg_l, seg_r + 1))
-
-            # 把 replacement 按各段原字符长度比例切分
-            total_len = sum(r - l for _, l, r in segments)
-            n_seg = len(segments)
-            if total_len == 0 or n_seg == 0:
-                continue
-            if n_seg == 1:
-                parts = [op.replacement]
             else:
-                # 按段长度比例切分 replacement（用字符数比例，保证视觉宽度近似）
-                # 先给首段和末段至少 1 个字符
-                rep = op.replacement
-                seg_lens = [r - l for _, l, r in segments]
-                # 把 rep 切成 n 段，长度按 seg_lens 比例
-                parts = self._split_replacement(rep, seg_lens)
-
-            # 写入各 <w:t>
-            for (ti, l, r), part in zip(segments, parts):
-                pieces[ti][l:r] = list(part)
-            applied.append(op)
-
-        # 写回 <w:t>.text
-        for t, piece in zip(ts, pieces):
-            t.text = "".join(piece)
-        return applied
-
-    @staticmethod
-    def _split_replacement(rep: str, seg_lens: List[int]) -> List[str]:
-        """把 rep 按 seg_lens 长度比例切分成多段。"""
-        total = sum(seg_lens)
-        if total == 0 or len(seg_lens) == 1:
-            return [rep]
-        # 每段字符数（按比例，首末段至少 1）
-        n = len(rep)
-        if n <= len(seg_lens):
-            # replacement 比段数还短：每段 1 个，最后一段吃剩下的
-            parts = [rep[i] if i < n else "" for i in range(len(seg_lens))]
-            return parts
-        # 正常按比例切
-        sizes = [max(1, round(n * L / total)) for L in seg_lens]
-        # 修正：总和与 n 的差异
-        diff = n - sum(sizes)
-        i = 0
-        while diff != 0 and sizes:
-            if diff > 0:
-                sizes[i % len(sizes)] += 1
-                diff -= 1
-            elif sizes[i % len(sizes)] > 1:
-                sizes[i % len(sizes)] -= 1
-                diff += 1
-            i += 1
-            if i > 100:
-                break
-        # 按 sizes 切片
-        out: List[str] = []
-        cur = 0
-        for s in sizes[:-1]:
-            out.append(rep[cur:cur + s])
-            cur += s
-        out.append(rep[cur:])
-        return out
-
+                raise RuntimeError("替换位置跨段或超出范围，已停止导出")
+        for i, replacements in grouped.items():
+            replace_ranges(package.entries[i][1], replacements)
+        package.save(dst)
+        return {"applied": len(self.ops), "skipped": 0}
 
 # ---------------------------------------------- PDF 改写（bbox 白块 + 可选文字层）
 
@@ -376,106 +196,51 @@ class PdfRedactor(BaseRedactor):
     file_type = "pdf"
 
     def rewrite(self, dst: str) -> Dict[str, Any]:
-        try:
-            import pypdfium2 as pdfium  # type: ignore
-            from PIL import Image, ImageDraw  # type: ignore
-            from reportlab.pdfgen import canvas  # type: ignore
-            from pypdf import PdfReader, PdfWriter  # type: ignore
-        except ImportError as exc:
-            raise RuntimeError("PDF 栅格化需要 pypdfium2 + Pillow + reportlab") from exc
-
-        # 1. 把所有 op 按 page 分类
-        ops_by_page: Dict[int, List[RedactOp]] = {}
+        import pypdfium2 as pdfium
+        from PIL import ImageDraw
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.utils import ImageReader
+        from pypdf import PdfReader, PdfWriter
+        groups = {}
         for op in self.ops:
             if not op.bbox or op.page is None:
-                continue
-            ops_by_page.setdefault(op.page, []).append(op)
-
-        applied = sum(len(v) for v in ops_by_page.values())
-        skipped = len(self.ops) - applied
-
-        # 2. 没有命中 → 直接拷贝原文件
-        if not ops_by_page:
+                raise RuntimeError("PDF 候选项缺少坐标，不能安全导出")
+            groups.setdefault(op.page, []).append(op)
+        if not groups:
             shutil.copyfile(self.source, dst)
-            return {"applied": 0, "skipped": skipped}
-
-        # 3. 用 pypdfium2 把每一页渲染成 PIL Image（命中页用 200 dpi 保证清晰）
+            return {"applied": 0, "skipped": 0}
+        reader = PdfReader(self.source)
+        writer = PdfWriter()
         pdf = pdfium.PdfDocument(self.source)
-        new_pages_bytes: List[bytes] = []
-        for i, page in enumerate(pdf, 1):
-            page_w = float(page.get_width())
-            page_h = float(page.get_height())
-            ops = ops_by_page.get(i, [])
-            if not ops:
-                # 未命中页：从原 PDF 直接抓内容（保留原文本层，搜索性最好）
-                new_pages_bytes.append(self._copy_page_bytes(self.source, i - 1))
-                continue
-            # 命中页 → 栅格化 → 画白块
-            pil_img = page.render(scale=200 / 72).to_pil()  # 200 dpi
-            draw = ImageDraw.Draw(pil_img)
-            scale_x = pil_img.width / page_w
-            scale_y = pil_img.height / page_h
-            for op in ops:
-                x0, y0, x1, y1 = op.bbox  # type: ignore[misc]
-                # bbox 来自 pdfplumber，原点在左上 → PIL 也在左上
-                px0 = x0 * scale_x
-                py0 = y0 * scale_y
-                px1 = x1 * scale_x
-                py1 = y1 * scale_y
-                draw.rectangle([px0, py0, px1, py1], fill=(255, 255, 255),
-                               outline=(220, 220, 220))
-                # 写掩码文字（便于复核）
-                try:
-                    from PIL import ImageFont
-                    f_h = max(8, int((py1 - py0) * 0.55))
-                    font = ImageFont.load_default(size=f_h) if hasattr(ImageFont, "load_default") else None
-                    txt = op.replacement[:24]
-                    if font:
-                        draw.text((px0 + 2, py0 + (py1 - py0 - f_h) / 2),
-                                  txt, fill=(120, 120, 120), font=font)
-                    else:
-                        draw.text((px0 + 2, py0 + 2), txt, fill=(120, 120, 120))
-                except Exception:
-                    pass
-            # 把 PIL Image 编码为 PNG bytes
-            buf = io.BytesIO()
-            pil_img.save(buf, format="PNG")
-            new_pages_bytes.append(buf.getvalue())
-
-        # 4. 用 reportlab 把每页（位图或原页）合成到新 PDF
-        tmp_path = dst + ".tmp.pdf"
-        c = canvas.Canvas(tmp_path)
-        for i, page in enumerate(pdf, 1):
-            page_w = float(page.get_width())
-            page_h = float(page.get_height())
-            c.setPageSize((page_w, page_h))
-            if i in ops_by_page:
-                # 命中页：贴位图（占满整页）
-                from reportlab.lib.utils import ImageReader  # type: ignore
-                img_reader = ImageReader(io.BytesIO(new_pages_bytes[i - 1]))
-                c.drawImage(img_reader, 0, 0, width=page_w, height=page_h)
-            else:
-                # 未命中页：把原页内容贴过来（用 pypdf 提取原页 → 转 image 贴）
-                # 简化处理：原页也栅格化（牺牲原页的搜索性换取代码简单）
-                pil_img = page.render(scale=200 / 72).to_pil()
-                buf = io.BytesIO(); pil_img.save(buf, format="PNG")
-                from reportlab.lib.utils import ImageReader
-                img_reader = ImageReader(io.BytesIO(buf.getvalue()))
-                c.drawImage(img_reader, 0, 0, width=page_w, height=page_h)
-            c.showPage()
-        c.save()
-        # 5. 改名
-        shutil.move(tmp_path, dst)
-        return {"applied": applied, "skipped": skipped}
-
-    def _copy_page_bytes(self, src_path: str, page_index: int) -> bytes:
-        """从原 PDF 抽取第 page_index 页的原始内容流（bytes）。"""
-        from pypdf import PdfReader  # type: ignore
-        reader = PdfReader(src_path)
-        page = reader.pages[page_index]
-        # 通过 reportlab 直接复制页面内容需要更复杂的处理；
-        # 简化：返回 None，调用方走栅格化分支
-        return b""
+        temporary = dst+".writing"
+        try:
+            for index, original in enumerate(reader.pages):
+                ops = groups.get(index+1, [])
+                if not ops:
+                    writer.add_page(original)
+                    continue
+                page = pdf[index]
+                bitmap = page.render(scale=200/72)
+                image = bitmap.to_pil().convert('RGB')
+                width, height = page.get_width(), page.get_height()
+                draw = ImageDraw.Draw(image)
+                for op in ops:
+                    x0, y0, x1, y1 = op.bbox
+                    draw.rectangle((x0*image.width/width, y0*image.height/height,
+                                    x1*image.width/width, y1*image.height/height), fill='white')
+                # One page at a time; never retain a list of full-resolution PNGs.
+                buffer = io.BytesIO()
+                output = canvas.Canvas(buffer, pagesize=(width, height))
+                output.drawImage(ImageReader(image), 0, 0, width=width, height=height)
+                output.showPage(); output.save()
+                writer.add_page(PdfReader(buffer).pages[0])
+                image.close(); bitmap.close(); page.close()
+            with open(temporary, 'wb') as stream: writer.write(stream)
+            os.replace(temporary, dst)
+        finally:
+            pdf.close()
+            if os.path.exists(temporary): os.remove(temporary)
+        return {"applied": len(self.ops), "skipped": 0}
 
 
 # ---------------------------------------------- TXT 改写（直接字符串替换）
@@ -547,10 +312,8 @@ def build_ops_from_report(report: Dict[str, Any], enabled_types: set,
                 block_index=o.get("block_index", -1),
             ))
 
-    if keep and not ops:
-        # 位置白名单一处也没对上（文档被改过 / 检测参数变了）→ 退化为按类型全量。
-        # 宁可多打码，也不要静默产出一份"看起来脱敏了、其实一个字没换"的文件。
-        return build_ops_from_report(report, enabled_types, None)
+    if keep is not None and len(ops) != len(keep):
+        raise RuntimeError("复核位置与当前识别结果不一致，请重新复核；不会扩大替换范围")
 
     full_text = report.get("_full_text", "")
     return ops, full_text
@@ -586,6 +349,7 @@ def redact_file(source: str,
                 allowlist: Optional[Sequence[str]] = None,
                 write_log: bool = True,
                 restore_mode: bool = False,
+                export_mode: Optional[str] = None,
                 ) -> Dict[str, Any]:
     """对单个文件执行「检测 → 选择 → 改写」的端到端流程。
 
@@ -598,21 +362,26 @@ def redact_file(source: str,
     （占位符 ↔ 原文一一对应）。当源是 .pdf 时，占位符会落在栅格化后的图片层上，
     所以 **PDF 模式仅占位生成 mapping，不实际写「占位 docx」**；可还原的始终是 docx。
     """
+    if export_mode not in (None, "external", "reversible"):
+        raise ValueError("未知导出模式")
+    if export_mode == "reversible" and os.path.splitext(source)[1].lower() != ".docx":
+        raise ValueError("自动还原仅支持 Word，请使用对外导出")
+    if export_mode:
+        restore_mode = True
+    if export_mode == "external":
+        write_log = False
     if not selection and not types:
         raise ValueError("必须提供 --selection 或 --types")
 
-    # 1) 同步 detector 的规则与设置
-    extra_specs: List = []
-    if rules_path:
-        extra_specs = load_rules_md(rules_path)
-
-    settings = Settings(min_confidence=min_confidence, min_severity=min_severity)
+    settings = D.load_settings(rules_path, min_confidence=min_confidence, min_severity=min_severity)
     if allowlist:
         settings.allowlist = set(allowlist)
 
     # 2) 用 detector 跑一次（保证报告与 detector 完全对齐）
     engine = DetectorEngine(settings)
     doc = _load_doc(source)
+    if export_mode == "external" and doc.warnings:
+        raise RuntimeError("存在尚未检查的页面："+"；".join(doc.warnings))
     candidates = engine.scan_document(doc)
 
     # 把 allowlist 过滤也加进去
@@ -689,15 +458,23 @@ def redact_file(source: str,
     if not out_path:
         stem = os.path.splitext(os.path.basename(source))[0]
         out_path = os.path.join(os.path.dirname(source) or ".",
-                                f"{stem}_脱敏{ext or '.txt'}")
+                                f"{stem}_{'对外脱敏' if export_mode == 'external' else '内部可逆' if export_mode == 'reversible' else '脱敏'}{ext or '.txt'}")
+
+    if os.path.realpath(source) == os.path.realpath(out_path):
+        raise ValueError("输出路径不能覆盖原文件")
 
     # 7) 改写
+    if ext == ".docx" and export_mode == "external":
+        from docx_text import DocxText
+        DocxText(source).sanitize_external()  # Validate before creating any output.
     result = redactor.rewrite(out_path)
+    if ext == ".docx" and export_mode == "external":
+        clean = DocxText(out_path); clean.sanitize_external(); clean.save(out_path)
 
     # 7.b) restore_mode：写 mapping.json + 把 mapping 嵌入 docx (customXml)
     mapping_path: Optional[str] = None
     embedded_ok = False
-    if restore_mode:
+    if restore_mode and export_mode != "external":
         mapping_path = out_path + ".mapping.json"
         sha = ""
         try:
@@ -893,108 +670,6 @@ def _summarize_entities(records: Sequence[Dict[str, Any]]) -> List[Dict[str, Any
 # ---------------------------------------------- DOCX 占位符回填（还原） --------
 
 
-def _split_replacement_static(rep: str, seg_lens: List[int]) -> List[str]:
-    """把 rep 按 seg_lens 长度比例切分成多段（与 DocxRedactor 共享）。"""
-    total = sum(seg_lens)
-    if total == 0 or len(seg_lens) == 1:
-        return [rep]
-    n = len(rep)
-    if n <= len(seg_lens):
-        return [rep[i] if i < n else "" for i in range(len(seg_lens))]
-    sizes = [max(1, round(n * L / total)) for L in seg_lens]
-    diff = n - sum(sizes)
-    i = 0
-    while diff != 0 and sizes:
-        if diff > 0:
-            sizes[i % len(sizes)] += 1
-            diff -= 1
-        elif sizes[i % len(sizes)] > 1:
-            sizes[i % len(sizes)] -= 1
-            diff += 1
-        i += 1
-        if i > 100:
-            break
-    out: List[str] = []
-    cur = 0
-    for s in sizes[:-1]:
-        out.append(rep[cur:cur + s])
-        cur += s
-    out.append(rep[cur:])
-    return out
-
-
-def _replace_in_paragraph_with_map(para_elem, pattern: "re.Pattern[str]",
-                                    seqs: Dict[str, List[str]],
-                                    cursor: Dict[str, int], W_NS: str) -> int:
-    """在段落上对所有 placeholder 应用替换；保留 run 级别样式（粗体/字体等）。
-
-    与 DocxRedactor._replace_in_paragraph 同思路：从后往前扫，命中后切分 run。
-
-    ``seqs``：占位符 → 该占位符按文档顺序对应的原文列表。
-    同一个实体共用一个占位符时（如全称「北京星海智能科技有限公司」与其简称
-    「星海智能」都是 [组织机构名称#1]），该列表会有多个**不同**的原文，
-    因此必须按出现顺序逐个取用；``cursor`` 跨段落累计已用到的下标。
-    """
-    ts = list(para_elem.iter(W_NS + "t"))
-    if not ts:
-        return 0
-    para_text = "".join(t.text or "" for t in ts)
-    if not pattern.search(para_text):
-        return 0
-
-    # 字符 → (ti, j_in_t) 映射
-    char_map: List[Tuple[int, int]] = []
-    for ti, t in enumerate(ts):
-        s = t.text or ""
-        for j in range(len(s)):
-            char_map.append((ti, j))
-
-    pieces: List[List[str]] = [list(t.text or "") for t in ts]
-    matches = list(pattern.finditer(para_text))
-    applied = 0
-
-    # 先按「文档正序」取出每个占位符本次应还原成的原文，再倒序改写，
-    # 这样既保证与出现顺序对齐，又不影响从后往前切分 run 的既有逻辑。
-    repls: List[str] = []
-    for m in matches:
-        seq = seqs.get(m.group(0)) or [""]
-        k = cursor.get(m.group(0), 0)
-        repls.append(seq[k] if k < len(seq) else seq[-1])
-        cursor[m.group(0)] = k + 1
-
-    for m, repl in reversed(list(zip(matches, repls))):
-        s, e = m.start(), m.end()
-
-        segments: List[Tuple[int, int, int]] = []
-        cur_ti = char_map[s][0]
-        seg_l = char_map[s][1]
-        seg_r = seg_l
-        for g in range(s + 1, e):
-            ti, j = char_map[g]
-            if ti != cur_ti:
-                segments.append((cur_ti, seg_l, seg_r + 1))
-                cur_ti = ti
-                seg_l = j
-                seg_r = j
-            else:
-                seg_r = j
-        segments.append((cur_ti, seg_l, seg_r + 1))
-
-        if len(segments) == 1:
-            parts = [repl]
-        else:
-            seg_lens = [r - l for _, l, r in segments]
-            parts = _split_replacement_static(repl, seg_lens)
-
-        for (ti, l, r), part in zip(segments, parts):
-            pieces[ti][l:r] = list(part)
-        applied += 1
-
-    for t, piece in zip(ts, pieces):
-        t.text = "".join(piece)
-    return applied
-
-
 class DocxRestorer:
     """docx 还原器：用 mapping.json 把 [label#N] 占位符回填成原文。
 
@@ -1033,63 +708,22 @@ class DocxRestorer:
         self.mapping = {ph: v[-1] for ph, v in seqs.items()}
 
     def restore(self, dst: str) -> Dict[str, Any]:
-        try:
-            from docx import Document as DocxDocument  # type: ignore
-            from docx.oxml.ns import qn
-        except ImportError as exc:
-            raise RuntimeError("还原 docx 需要 python-docx") from exc
-
-        shutil.copyfile(self.source, dst)
-        doc = DocxDocument(dst)
-
-        if not self.seqs:
-            return {"applied": 0, "skipped": 0, "missing": list()}
-
-        # 按 placeholder 长度倒序，避免子串误伤
-        items = sorted(self.seqs.items(), key=lambda kv: -len(kv[0]))
-        pattern = re.compile("|".join(re.escape(ph) for ph, _ in items))
-
-        # 收集所有段落（正文 + 页眉页脚）
-        para_seq: List[Any] = []
-        for p in doc.element.body.iter(qn("w:p")):
-            text = "".join(t.text or "" for t in p.iter(self.W_NS + "t"))
-            if text.strip():
-                para_seq.append(p)
-        for sec in doc.sections:
-            for part in (sec.header, sec.footer):
-                try:
-                    for p in part._element.iter(qn("w:p")):
-                        text = "".join(t.text or "" for t in p.iter(self.W_NS + "t"))
-                        if text.strip():
-                            para_seq.append(p)
-                except Exception:
-                    pass
-
-        applied = 0
-        # 替换前先采集完整文本，便于统计「文档中没有的占位符」
-        before_text_parts: List[str] = []
-        for p in doc.element.body.iter(qn("w:p")):
-            before_text_parts.append(
-                "".join(t.text or "" for t in p.iter(self.W_NS + "t")))
-        for sec in doc.sections:
-            for part in (sec.header, sec.footer):
-                try:
-                    for p in part._element.iter(qn("w:p")):
-                        before_text_parts.append(
-                            "".join(t.text or "" for t in p.iter(self.W_NS + "t")))
-                except Exception:
-                    pass
-        before_text = "\n".join(before_text_parts)
-
-        cursor: Dict[str, int] = {}
-        for p in para_seq:
-            applied += _replace_in_paragraph_with_map(
-                p, pattern, self.seqs, cursor, self.W_NS)
-
-        missing = [ph for ph in self.seqs if ph not in before_text]
-
-        doc.save(dst)
-        return {"applied": applied, "skipped": 0, "missing": missing}
+        from docx_text import DocxText, paragraph_map, replace_ranges
+        package = DocxText(self.source)
+        pattern = re.compile("|".join(re.escape(p) for p in sorted(self.seqs, key=len, reverse=True)))
+        cursor = {}; applied = 0
+        for _, paragraph in package.entries:
+            text, _ = paragraph_map(paragraph)
+            replacements = []
+            for match in pattern.finditer(text):
+                ph = match.group(); index = cursor.get(ph, 0)
+                if index >= len(self.seqs[ph]):
+                    raise RuntimeError("占位符数量与映射不一致，不能安全还原")
+                replacements.append((match.start(), match.end(), self.seqs[ph][index], ph))
+                cursor[ph] = index+1
+            applied += replace_ranges(paragraph, replacements)
+        package.save(dst)
+        return {"applied": applied, "skipped": 0, "missing": [ph for ph in self.seqs if ph not in cursor]}
 
 
 # --------------------------------------------------- 还原主流程 ----------------
@@ -1353,6 +987,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--doc-root", default=".", help="serve 模式下输出文件所在目录")
     ap.add_argument("--app-workdir", default=None,
                     help="应用模式下的会话工作目录（默认 ./contract_app_sessions）")
+    ap.add_argument("--export-mode", choices=["external", "reversible"], default="external")
     ap.add_argument("--restore-mode", action="store_true",
                     help="脱敏时使用 [label#N] 占位符，并写出 mapping.json 以便还原")
     ap.add_argument("--restore", action="store_true",
@@ -1370,6 +1005,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return redactor_selftest()
 
     if args.app:
+        from contract_app_server import start_app_server
+        D.enforce_loopback_only()
         workdir = args.app_workdir or os.path.abspath("./contract_app_sessions")
         srv = start_app_server(args.host, args.port, workdir)
         sys.stderr.write(
@@ -1384,20 +1021,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 0
 
     if args.serve:
-        doc_root = os.path.abspath(args.doc_root)
-        os.makedirs(doc_root, exist_ok=True)
-        srv = start_serve(args.host, args.port, doc_root)
-        sys.stderr.write(
-            f"[serve] {ENGINE_NAME} v{__version__} listening on "
-            f"http://{args.host}:{args.port}  (output dir: {doc_root})\n"
-            "[serve] 在复核页点击「确认并执行脱敏改写」即可调用。Ctrl-C 退出。\n"
-        )
-        try:
-            srv.serve_forever()
-        except KeyboardInterrupt:
-            sys.stderr.write("[serve] shutting down...\n")
-        return 0
-
+        raise RuntimeError("旧版服务入口已停用，请使用 contract_app_server.py")
     if not args.input:
         ap.print_help()
         return 2
@@ -1443,6 +1067,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             allowlist=list(allowlist),
             write_log=not args.no_log,
             restore_mode=args.restore_mode,
+            export_mode="reversible" if args.restore_mode else args.export_mode,
         )
     except Exception as e:
         print(f"[错误] 改写失败：{e}", file=sys.stderr)
@@ -1488,6 +1113,18 @@ def redactor_selftest() -> int:
     print(f"  原文 → 脱敏后：\n  {out.strip()[:120]}…")
     return 0
 
+
+
+
+# TYPE_META is shared by the legacy detectors; prevent concurrent rule mutation.
+def _locked_redact(function):
+    from functools import wraps
+    @wraps(function)
+    def call(*args, **kwargs):
+        with D.RULES_LOCK:
+            return function(*args, **kwargs)
+    return call
+redact_file = _locked_redact(redact_file)
 
 if __name__ == "__main__":
     sys.exit(main())

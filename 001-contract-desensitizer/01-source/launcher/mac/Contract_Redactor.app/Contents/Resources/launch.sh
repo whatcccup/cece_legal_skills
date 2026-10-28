@@ -6,8 +6,8 @@
 #   launch.sh --foreground   前台模式（Terminal 控制台用）
 #
 # 行为：
-#   1. 释放固定端口 18800（结束上一次的服务进程）
-#   2. 关掉上一次打开的 Chrome 应用窗口
+#   1. 检查端口，不结束占用程序
+#   2. 准备本机 Python 环境
 #   3. 启动本地服务（完全离线，仅监听 127.0.0.1）
 #   4. 就绪后用 Chrome 的「应用模式」窗口打开 http://127.0.0.1:18800/
 #
@@ -16,31 +16,22 @@
 # ---------------------------------------------------------------------------
 set -u
 
-PORT=18800
+PORT="${CONTRACT_REDACTOR_PORT:-18800}"
 APP_URL="http://127.0.0.1:${PORT}/"
 FOREGROUND=0
 [ "${1:-}" = "--foreground" ] && FOREGROUND=1
 
-# HOME 兜底（从 LaunchServices 启动时理论上一定有，但不能假设）
-if [ -z "${HOME:-}" ]; then
-    HOME="$(/usr/bin/dscl . -read /Users/"$(/usr/bin/id -un)" NFSHomeDirectory 2>/dev/null | /usr/bin/awk '{print $2}')"
-    export HOME
+if /usr/sbin/lsof -nP -tiTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+    echo "端口 $PORT 已被占用。先打开 ${APP_URL}；若是旧工具，点击右上角退出后重试。若是其他程序，请让AI检查并选择其他端口；不会强制结束进程。" >&2
+    exit 1
 fi
-[ -n "${HOME:-}" ] || HOME=/tmp
-
 LOG_DIR="$HOME/Library/Logs/ContractRedactor"
 SERVER_LOG="$LOG_DIR/server.log"
 LAUNCH_LOG="$LOG_DIR/launcher.log"
 CHROME_PROFILE="$HOME/Library/Application Support/ContractRedactor/chrome-profile"
 mkdir -p "$LOG_DIR" "$CHROME_PROFILE" 2>/dev/null || true
-
-log() { printf '%s  %s\n' "$(date '+%H:%M:%S')" "$*" | /usr/bin/tee -a "$LAUNCH_LOG"; }
-
-die() {
-    log "✗ $*"
-    /usr/bin/osascript -e "display alert \"合同脱敏 / 还原\" message \"$*\" as critical" >/dev/null 2>&1 || true
-    exit 1
-}
+log() { printf '%s\n' "$*" | /usr/bin/tee -a "$LAUNCH_LOG"; }
+die() { log "失败：$*" >&2; exit 1; }
 
 # ---------------------------------------------------------------- 定位项目根
 find_proj() {
@@ -54,12 +45,14 @@ find_proj() {
 }
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJ_DIR="$(find_proj "$SELF_DIR" || true)"
+PROJ_DIR=""
+[ -f "$SELF_DIR/tool/contract_app_server.py" ] && PROJ_DIR="$SELF_DIR/tool"
+[ -z "$PROJ_DIR" ] && PROJ_DIR="$(find_proj "$SELF_DIR" || true)"
 [ -z "${PROJ_DIR:-}" ] && PROJ_DIR="$(find_proj "$(pwd)" || true)"
 [ -z "${PROJ_DIR:-}" ] && die "找不到 contract_app_server.py。请把本应用放在项目目录内（或与项目同级）后再试。"
 
 # ---------------------------------------------------------------- 找 Python
-has_deps() { "$1" -c "import docx, pdfplumber, pypdf, reportlab, pypdfium2, PIL" >/dev/null 2>&1; }
+has_deps() { "$1" -c "import sys; assert sys.version_info >= (3,9); import docx, pdfplumber, pypdf, reportlab, pypdfium2, PIL" >/dev/null 2>&1; }
 
 PY=""
 for c in "$HOME/.workbuddy/binaries/python/envs/default/bin/python" \
@@ -76,41 +69,15 @@ if [ -z "$PY" ]; then
     VENV="$PROJ_DIR/.venv"
     "$BASE" -m venv "$VENV" >>"$LAUNCH_LOG" 2>&1 || die "创建虚拟环境失败，详见 $LAUNCH_LOG"
     "$VENV/bin/python" -m pip install --quiet --upgrade pip >>"$LAUNCH_LOG" 2>&1 || true
-    "$VENV/bin/python" -m pip install --quiet python-docx pdfplumber pypdf reportlab pypdfium2 Pillow >>"$LAUNCH_LOG" 2>&1 \
+    "$VENV/bin/python" -m pip install --quiet -r "$PROJ_DIR/requirements.txt" >>"$LAUNCH_LOG" 2>&1 \
         || die "依赖安装失败，详见 $LAUNCH_LOG"
     PY="$VENV/bin/python"
 fi
 
-# ---------------------------------------------------------------- 释放端口 / 清理旧实例
-free_port() {
-    local pids i
-    pids="$(/usr/sbin/lsof -nP -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true)"
-    [ -z "$pids" ] && return 0
-    log "· 端口 $PORT 被占用，正在结束旧服务（PID: $(echo "$pids" | tr '\n' ' ')）"
-    kill $pids 2>/dev/null || true
-    for i in 1 2 3 4 5 6 7 8 9 10; do
-        sleep 0.3
-        /usr/sbin/lsof -nP -tiTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1 || return 0
-    done
-    pids="$(/usr/sbin/lsof -nP -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true)"
-    [ -n "$pids" ] && kill -9 $pids 2>/dev/null || true
-    sleep 0.4
-}
-
-free_port
-/usr/bin/pkill -f "contract_app_server\.py" >/dev/null 2>&1 || true
-# 只结束用本工具专用 profile 启动的 Chrome 实例，绝不误伤用户自己的 Chrome
-/usr/bin/pkill -f "Google Chrome.*ContractRedactor/chrome-profile" >/dev/null 2>&1 || true
-# 关掉上一次用 .command 起的 Terminal 窗口
-/usr/bin/osascript >/dev/null 2>&1 <<'AS' || true
-tell application "Terminal"
-    repeat with w in windows
-        try
-            if (name of w) contains "Contract Redactor" then close w
-        end try
-    end repeat
-end tell
-AS
+# Never terminate an unknown process just because it owns our port.
+if /usr/sbin/lsof -nP -tiTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+    die "端口 $PORT 已被占用。先在浏览器打开 ${APP_URL}；若是旧工具，请点右上角退出后重试。若是其他程序，请使用启动排错.command查看说明，或让AI检查后选择其他端口；不会强制结束其他进程。"
+fi
 
 # ---------------------------------------------------------------- 起服务
 WORKDIR="$PROJ_DIR/contract_app_sessions"

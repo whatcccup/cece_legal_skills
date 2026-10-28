@@ -34,6 +34,7 @@ from docx import Document  # noqa: E402
 FAILS: list = []
 HOST, PORT = "127.0.0.1", 18899
 BASE = f"http://{HOST}:{PORT}"
+AUTH = ""
 
 # 同时覆盖两类漏检：带内部分组空格的座机、校验码错误的统一社会信用代码
 SAMPLE = """甲方：北京星海智能科技有限公司（以下简称“星海智能”）
@@ -62,9 +63,10 @@ def http_get(path: str) -> bytes:
 
 
 def http_post_json(path: str, payload: dict) -> dict:
+    if path.startswith("/api/apply/"): payload.setdefault("export_mode", "reversible")
     req = urllib.request.Request(
         BASE + path, data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"}, method="POST")
+        headers={"X-Contract-Token": AUTH, "Content-Type": "application/json"}, method="POST")
     with urllib.request.urlopen(req, timeout=600) as r:
         return json.loads(r.read().decode("utf-8"))
 
@@ -86,7 +88,7 @@ def http_upload(docx_path: str, mode: str = "redact") -> dict:
     body.write(f"--{boundary}--\r\n".encode())
     req = urllib.request.Request(
         BASE + "/api/upload", data=body.getvalue(),
-        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        headers={"X-Contract-Token": AUTH, "Content-Type": f"multipart/form-data; boundary={boundary}"},
         method="POST")
     with urllib.request.urlopen(req, timeout=600) as r:
         return json.loads(r.read().decode("utf-8"))
@@ -105,6 +107,7 @@ def placeholder_nums(text: str, label: str) -> list:
 
 
 def run() -> int:
+    global AUTH, PORT, BASE
     tmp = tempfile.mkdtemp(prefix="app_e2e_")
     src = os.path.join(tmp, "input.docx")
     d = Document()
@@ -112,7 +115,8 @@ def run() -> int:
         d.add_paragraph(line)
     d.save(src)
 
-    server = S.AppHandler and S.start_app_server(HOST, PORT, os.path.join(tmp, "sessions"))
+    server = S.AppHandler and S.start_app_server(HOST, 0, os.path.join(tmp, "sessions"))
+    PORT=server.server_port; BASE=f"http://{HOST}:{PORT}"; AUTH=server.RequestHandlerClass.state.token
     th = threading.Thread(target=server.serve_forever, daemon=True)
     th.start()
     time.sleep(0.5)

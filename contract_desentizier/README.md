@@ -1,5 +1,8 @@
 # 合同脱敏 / 还原工具
 
+
+当前源码为 **v1.2.1**。[官网 Mac / Windows 下载与安装](https://legaltechcc.com/workflows/contract-desensitizer/#install)。默认对外脱敏稿不含还原映射；仅 Word 内部可逆稿可自动还原。合同处理离线运行，不需要 AI。
+
 **从公众号文章找到这里的朋友，工具仍然公开可用。** 此目录保留文章中的 `contract_desentizier` 拼写，作为固定入口。
 
 - **[打开完整工具与安装教程](../001-contract-desensitizer/01-source/README.md)**

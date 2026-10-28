@@ -28,6 +28,8 @@ import sys
 import threading
 import time
 import uuid
+import secrets
+import socket
 import urllib.parse
 import shutil
 from datetime import datetime
@@ -56,7 +58,7 @@ from contract_redactor import (
 
 
 APP_NAME = "contract_app_server"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.1"
 DEFAULT_PORT = 18800
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
 
@@ -83,6 +85,8 @@ class AppState:
     def __init__(self, work_dir: str):
         os.makedirs(work_dir, exist_ok=True)
         self.work_dir = work_dir
+        self.token = secrets.token_urlsafe(32)
+        self.processing = threading.BoundedSemaphore(2)
         self.uploads: Dict[str, Dict[str, Any]] = {}
 
     def new_session(self, sid: str, info: Dict[str, Any]) -> None:
@@ -106,44 +110,16 @@ def _ext_of(name: str) -> str:
     return os.path.splitext(name)[1].lower()
 
 
-def _run_detector(path: str) -> Dict[str, Any]:
-    """对刚上传的路径跑一次 detector，返回 (doc, candidates, report, report_full_text)。
-
-    使用 detector 默认配置 + 项目同目录的 rules markdown。
-    """
-    rules_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        "脱敏规则清单.md",
-    )
-    extra_specs: List = []
-    if os.path.exists(rules_path):
-        try:
-            extra_specs = load_rules_md(rules_path)
-        except Exception:
-            extra_specs = []
-    settings = Settings(min_confidence=0.5, min_severity="low")
-    if extra_specs:
-        from contract_sensitive_detector import TYPE_META as _TM, TypeMeta
-        import dataclasses as _dc
-        for s in extra_specs:
-            if s.type_id in _TM:
-                cur = _TM[s.type_id]
-                kw = {}
-                if getattr(s, "severity", None):
-                    kw["severity"] = s.severity
-                if getattr(s, "enabled", None) is False:
-                    settings.disabled.add(s.type_id)
-                if kw:
-                    _TM[s.type_id] = _dc.replace(cur, **kw)
-    engine = DetectorEngine(settings)
-    doc = load_document(path, include_headers=True)
-    candidates = engine.scan_document(doc)
-    report = build_report(doc, candidates, settings)
-    full_raw = "\n".join(b.text.rstrip("\n") for b in doc.blocks)
-    return {
-        "doc": doc, "candidates": candidates, "report": report,
-        "full_raw": full_raw,
-    }
+def _run_detector(path: str, rules_path=None) -> Dict[str, Any]:
+    with D.RULES_LOCK:
+        settings = D.load_settings(rules_path, min_confidence=0.5, min_severity="low")
+        doc = load_document(path, include_headers=True)
+        if not doc.blocks:
+            raise RuntimeError("没有可提取文字，请先检查文件或进行OCR")
+        candidates = DetectorEngine(settings).scan_document(doc)
+        report = build_report(doc, candidates, settings)
+        full_raw = "\n".join(b.text.rstrip("\n") for b in doc.blocks)
+        return {"doc": doc, "report": report, "full_raw": full_raw, "candidates": candidates}
 
 
 def _looks_like_redacted(redacted_path: str) -> bool:
@@ -189,6 +165,9 @@ class AppHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'")
+        self.send_header("Cache-Control", "no-store")
         if extra_headers:
             for k, v in extra_headers:
                 self.send_header(k, v)
@@ -202,10 +181,38 @@ class AppHandler(BaseHTTPRequestHandler):
     def _send_html(self, body, code: int = 200) -> None:
         if isinstance(body, str):
             body = body.encode("utf-8")
+        script = """<meta name="csrf-token" content="__TOKEN__"><script>
+(function(){const original=window.fetch;window.fetch=function(input,init){
+ const url=new URL(typeof input==='string'?input:input.url,location.href);
+ if(url.origin!==location.origin)throw new Error('只允许本机请求');
+ const request=new Request(input,init);const headers=new Headers(request.headers);
+ headers.set('X-Contract-Token',document.querySelector('meta[name="csrf-token"]').content);
+ return original(new Request(request,{headers:headers}));};})();</script>""".replace('__TOKEN__', self.state.token)
+        body = body.replace(b'</head>', script.encode('utf-8')+b'</head>')
         self._send(code, "text/html; charset=utf-8", body)
+
+    def _valid_request(self, token=False):
+        port = self.server.server_port
+        hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
+        host = self.headers.get("Host", "")
+        origin = self.headers.get("Origin")
+        if host not in hosts or (origin is not None and origin not in {"http://"+h for h in hosts}):
+            self.close_connection = True
+            self._send_json({"ok": False, "error": "不允许的请求来源"}, 403)
+            return False
+        if token and not secrets.compare_digest(self.headers.get("X-Contract-Token", "").encode(), self.state.token.encode()):
+            self.close_connection = True
+            self._send_json({"ok": False, "error": "请求令牌失效，请刷新页面"}, 403)
+            return False
+        return True
+
+    def setup(self):
+        super().setup()
+        self.connection.settimeout(30)
 
     # ---- GET ----
     def do_GET(self):
+        if not self._valid_request(): return
         u = urllib.parse.urlparse(self.path)
         path = u.path
         qs = urllib.parse.parse_qs(u.query)
@@ -277,13 +284,33 @@ class AppHandler(BaseHTTPRequestHandler):
 
     # ---- POST ----
     def do_POST(self):
+        if not self._valid_request(token=True): return
+        if not self.state.processing.acquire(blocking=False):
+            self._send_json({"ok": False, "error": "正在处理其他合同，请稍后重试"}, 429)
+            return
+        try:
+            self._post()
+        finally:
+            self.state.processing.release()
+
+    def _post(self):
         u = urllib.parse.urlparse(self.path)
         path = u.path
         ctype = self.headers.get("Content-Type", "")
         body_bytes = b""
-        clen = int(self.headers.get("Content-Length", "0") or 0)
+        try:
+            clen = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self._send_json({"ok": False, "error": "无效请求长度"}, 400); self.close_connection=True; return
+        limit = MAX_UPLOAD_BYTES+1024*1024 if path == "/api/upload" else 8*1024*1024
+        if self.headers.get('Transfer-Encoding') or clen < 0 or clen > limit:
+            self._send_json({"ok": False, "error": "请求体超过大小上限"}, 413); self.close_connection=True; return
         if clen:
-            body_bytes = self.rfile.read(clen)
+            try: body_bytes = self.rfile.read(clen)
+            except (TimeoutError, socket.timeout):
+                self._send_json({"ok": False, "error": "上传超时"}, 408); self.close_connection=True; return
+            if len(body_bytes) != clen:
+                self._send_json({"ok": False, "error": "上传不完整"}, 400); return
 
         # 解析 multipart
         def parse_multipart():
@@ -475,12 +502,18 @@ class AppHandler(BaseHTTPRequestHandler):
                 return
             input_path = info["input_path"]
             ext = _ext_of(input_path)
+            export_mode = req.get("export_mode", "external")
+            if export_mode not in ("external", "reversible"):
+                self._send_json({"ok": False, "error": "请选择导出模式"}, 400); return
+            if export_mode == "reversible" and ext != ".docx":
+                self._send_json({"ok": False, "error": "自动还原仅支持 Word，请选择对外稿"}, 400); return
 
             # 决定输出目录 / 路径
             out_dir = os.path.join(self.state.work_dir, sid, "out")
             os.makedirs(out_dir, exist_ok=True)
             stem = os.path.splitext(os.path.basename(input_path))[0]
-            output_name = f"{stem}_脱敏{ext or '.txt'}"
+            label = "对外脱敏" if export_mode == "external" else "内部可逆"
+            output_name = f"{stem}_{label}{ext or '.txt'}"
             out_path = os.path.join(out_dir, output_name)
 
             enabled_types = req.get("enabled_types") or []
@@ -495,7 +528,7 @@ class AppHandler(BaseHTTPRequestHandler):
             if not isinstance(enabled_items, list):
                 enabled_items = None
 
-            warnings = ""
+            warnings = "对外稿不含还原映射；仍须人工检查图片、未选项目及上下文。" if export_mode == "external" else "内部可逆稿包含原文映射，请勿直接外发。"
             try:
                 # 注：含占位符的文件 = 已被脱敏过，二次脱敏会再次写出 placeholder
                 # 避免重叠加：在该文件下不再生成新的 mapping（直接复用上一次）
@@ -508,22 +541,13 @@ class AppHandler(BaseHTTPRequestHandler):
                     min_confidence=float(req.get("min_confidence", 0.5)),
                     min_severity=req.get("min_severity", "low"),
                     restore_mode=True,
+                    export_mode=export_mode,
                 )
             except Exception as exc:
                 self._send_json({"ok": False, "error": f"脱敏失败：{exc}"}, 500)
                 return
 
-            # 把 mapping.json 复制到 out_dir
-            # 注意：优先用 redact_file 产出的那份 —— 它只包含本次实际启用的类型，
-            # 与刚生成的 <name>_脱敏.docx 里的占位符严格对应（upload 时那份是"全量"，
-            # 用户若取消勾选某些类型，两者会对不上）。
-            mapping_src = r.get("mapping") or info["mapping_path"]
-            mapping_dst = os.path.join(out_dir, output_name + ".mapping.json")
-            try:
-                import shutil
-                shutil.copyfile(mapping_src, mapping_dst)
-            except Exception:
-                mapping_dst = mapping_src
+            mapping_dst = r.get("mapping")
 
             # 复制 log
             log_dst = None
@@ -539,8 +563,8 @@ class AppHandler(BaseHTTPRequestHandler):
                 "ok": True,
                 "output_name": output_name,
                 "output_url": f"/download/{sid}/{urllib.parse.quote(output_name)}",
-                "mapping_name": os.path.basename(mapping_dst),
-                "mapping_url": f"/download/{sid}/{urllib.parse.quote(os.path.basename(mapping_dst))}",
+                "mapping_name": os.path.basename(mapping_dst) if mapping_dst else None,
+                "mapping_url": f"/download/{sid}/{urllib.parse.quote(os.path.basename(mapping_dst))}" if mapping_dst else None,
                 "log_url": f"/download/{sid}/{urllib.parse.quote(os.path.basename(log_dst))}" if log_dst else None,
                 "applied": r["applied"],
                 "skipped": r["skipped"],
@@ -575,7 +599,8 @@ class AppHandler(BaseHTTPRequestHandler):
                     return
                 req_mapping = req.get("mapping")
                 if req_mapping:
-                    mapping_path = req_mapping
+                    self._send_json({"ok": False, "error": "请上传映射文件，不接受本机任意路径"}, 400)
+                    return
             if not mapping_path:
                 # 自动找
                 sib = info.get("sibling_mapping") or find_sibling_mapping(info["input_path"])
@@ -682,6 +707,8 @@ def _build_review_payload(report: Dict[str, Any], doc_blocks: List[Any]) -> Dict
 
 def start_app_server(host: str, port: int, work_dir: str) -> ThreadingHTTPServer:
     """启动 Contract Redactor Web 应用。"""
+    if host != "127.0.0.1":
+        raise ValueError("服务仅允许绑定127.0.0.1")
     os.makedirs(work_dir, exist_ok=True)
     state = AppState(work_dir)
 
@@ -722,8 +749,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="启动后自动打开主页面（优先使用 Chrome 应用窗口）")
     args = ap.parse_args(argv)
 
-    # 启动期间放开网络（127.0.0.1 绑定 / 可选浏览器跳转）
-    D.enforce_offline = lambda: None  # 临时禁掉，避免 start_app 失败
+    # Only loopback connections are permitted in the contract-processing process.
+    D.enforce_loopback_only()
 
     workdir = os.path.abspath(args.workdir)
     os.makedirs(workdir, exist_ok=True)
@@ -741,8 +768,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     print("  停止服务：网页右上角「退出」，或在此按 Ctrl-C")
     print()
     if args.open_browser:
-        import threading, webbrowser
-        threading.Timer(1.0, lambda: webbrowser.open(f"http://{args.host}:{args.port}/")).start()
+        import subprocess
+        url=f"http://{args.host}:{args.port}/"
+        if sys.platform == "win32": os.startfile(url)
+        elif sys.platform == "darwin": subprocess.Popen(["open", url])
+        else: subprocess.Popen(["xdg-open", url])
     try:
         server.serve_forever()
     except KeyboardInterrupt:

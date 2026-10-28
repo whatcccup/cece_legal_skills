@@ -28,7 +28,7 @@ info() { printf '\n== %s ==\n' "$*"; }
 info "1/5 同步源码 01-source → 03-skillhub"
 mkdir -p "$PKG/scripts/launcher" "$PKG/references" "$PKG/tests"
 for f in contract_sensitive_detector.py contract_redactor.py \
-         contract_app_server.py contract_app_ui.py requirements.txt; do
+         contract_app_server.py contract_app_ui.py docx_text.py requirements.txt; do
   cp "$SRC/$f" "$PKG/scripts/$f" || bad "复制 $f 失败"
 done
 # 启动器 start.py 是技能包专属（.bat/.vbs/.sh 会被上架拦截），手写维护，不参与同步

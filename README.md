@@ -1,80 +1,34 @@
 # cece_legal_skills
 
-> **公众号读者入口**：[合同脱敏工具与快速开始](contract_desentizier/README.md)。原目录 [contract_desensitizer](contract_desensitizer/) 和旧仓库 [cece_legal_ai_skills](https://github.com/whatcccup/cece_legal_ai_skills) 均保留导航入口。
+合同脱敏工具 **v1.2.1**：提供 Mac 和 Windows ZIP 包；安装依赖后在本机离线运行，不需要 AI 客户端、模型账号或 API Key。
 
-法务 / 法律场景的**离线小工具**集合：不联网、不上传、可逆，装好就能用。
+## 下载与安装
 
-<p align="center">
-  <img src="001-contract-desensitizer/01-source/docs/images/03-左右对比.png" alt="合同脱敏前后对比" width="760">
-</p>
+- [官网介绍与安装说明](https://legaltechcc.com/workflows/contract-desensitizer/#install)
+- [下载 Mac 版](https://legaltechcc.com/assets/downloads/contract-desensitizer-mac-1.2.1.zip)
+- [下载 Windows 版](https://legaltechcc.com/assets/downloads/contract-desensitizer-windows-1.2.1.zip)
+- [源码、手动安装与测试](001-contract-desensitizer/01-source/README.md)
+- [给普通用户和 AI Agent 的安装说明](001-contract-desensitizer/01-source/开始使用.md)
 
-**共同原则**：完全离线（不调大模型、不产生外联流量）· 结果可复现（靠格式规则与国标校验位，同样输入永远同样输出）· 不折腾就能用（可一键安装的 AI Skill，或双击启动器）。
+先完整解压 ZIP，不要在压缩包内直接启动。Mac 双击外层“合同脱敏工具.app”。Windows 双击文件夹里的 `Start.vbs`；不要单独移动或删除 `Start.vbs`、`Start.bat` 和 `_support`，需要换位置时把整个文件夹一起移动。首次需要 Python 3.9+ 和联网安装依赖；Windows 启动器已静态检查，尚未完成实机验证。
 
----
+macOS 若提示无法验证开发者，请先尝试打开，再到“系统设置 → 隐私与安全性 → 安全性 → 仍要打开”确认。启动失败与端口占用的排查见[安装说明](001-contract-desensitizer/01-source/开始使用.md)。
 
-## 30 秒上手
+## 使用与保密
 
-### 方案 A（推荐）：装成 AI Skill，环境都不用管
+支持 Word、文字型 PDF、TXT、Markdown，识别结果需人工复核。默认导出“对外脱敏稿”，不附带原文映射；“内部可逆稿”仅用于 Word，内嵌原文映射，应按原合同等级保管，不能直接对外发送。扫描件需要先 OCR。
 
-把这句话发给你的 AI Agent（WorkBuddy / Claude Code / Cursor / Codex 都行）：
+官网 ZIP 附带同版本源码与测试；官网同名 JSON 记录源码提交及 SHA-256。唯一源码入口为 `001-contract-desensitizer/01-source`。`03-skillhub` 是此前的上架形态，本次没有发布 SkillHub，不能将其视为 v1.2.1。
 
-> 请用 SkillHub CLI 安装技能 `contract-desensitizer-offline`（`skillhub install contract-desensitizer-offline --namespace user_47430f88`，`--dir` 指向你自己的 skills 目录），安装成功后确认你会用它做合同脱敏：装依赖、启动本地服务、告诉我访问地址，全程不要修改技能里的源码。
+公众号兼容入口：[contract_desentizier](contract_desentizier/README.md)、[contract_desensitizer](contract_desensitizer/README.md)；旧仓库链接继续保留导航用途。
 
-手动也行：
+## 仓库目录
 
-```bash
-curl -fsSL https://skillhub.cn/install/install.sh | bash -s -- --cli-only   # 装 CLI（仅一次）
-export PATH="$HOME/.local/bin:$PATH"
-skillhub install contract-desensitizer-offline --namespace user_47430f88 --dir ~/.workbuddy/skills
-```
-
-`--dir` 必须指向客户端自己的 skills 目录：WorkBuddy `~/.workbuddy/skills`、Claude Code `~/.claude/skills`、Cursor `~/.cursor/skills`、Codex `~/.codex/skills`。默认会装到当前目录的 `./skills/`，客户端识别不到。
-
-### 方案 B：GitHub 完整版（带双击图标）
-
-```bash
-git clone https://github.com/whatcccup/cece_legal_skills.git
-cd cece_legal_skills/001-contract-desensitizer/01-source
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-```
-
-之后双击启动器即可（macOS `launcher/mac/Contract_Redactor.app`，Windows `launcher/windows/Contract_Redactor.vbs`），
-浏览器打开 <http://127.0.0.1:18800/>。
-
-> 方案 A 是轻量技能包（128 KB，不含图标与截图，跨平台启动器是 `start.py`）；
-> 方案 B 是完整工程（含 `.app` / `.vbs` 图标、截图、回归测试）。**引擎是同一套**，选哪个都行。
-
-完整教程：**[001-contract-desensitizer/01-source/README.md](001-contract-desensitizer/01-source/README.md)**
-
----
-
-## 技能索引
-
-| 编号 | 技能 | 一句话定位 | GitHub | SkillHub |
-|---|---|---|---|---|
-| [001](001-contract-desensitizer/) | 合同脱敏 / 还原 | 把合同敏感信息换成可逆占位符，需要时一键还原 | ✅ 本仓库 | [contract-desensitizer-offline](https://skillhub.cn/skills/user_47430f88/contract-desensitizer-offline) |
-
----
-
-## 仓库里有什么
-
-```
-cece_legal_skills/
-├── README.md                 ← 本文件（落地页）
-├── LICENSE                   ← MIT
-├── templates/                ← 新技能 README 模板
-└── 001-contract-desensitizer/
-    ├── README.md             ← 技能卡片（定位 / 快速开始 / 能力边界 / 目录地图）
-    ├── 01-source/            ← 【唯一真源】4 个引擎 + 规则清单 + 启动器 + 截图 + 测试 + 完整教程
-    ├── 02-github/            ← CHANGELOG / RELEASE-CHECKLIST
-    ├── 03-skillhub/          ← 上传 SkillHub 的发布形态（SKILL.md + scripts + references）
-    ├── 90-build/             ← build.sh / publish_to_skillhub.sh（生成的 zip 不入库）
-    └── 99-temp/              ← 会话、报告、脱敏稿（含真实敏感信息，不入库）
-```
-
-**这个仓库的用处**：它是源码真源 + 完整版分发渠道 + 版本历史。
-`01-source/` 不是"藏起来"，它就是这个工具本身（含图标、截图、测试、完整教程），
-只是 SkillHub 那边另有一份**由它同步出来的轻量副本**（`03-skillhub/`，不能手改，由 `90-build/build.sh` 生成）。
+- `001-contract-desensitizer/01-source/`：源码、启动器、规则、安装说明和测试。
+- `001-contract-desensitizer/02-github/`：变更记录、发布清单。
+- `001-contract-desensitizer/03-skillhub/`：SkillHub 发布形态，需另行构建和上架。
+- `001-contract-desensitizer/90-build/`：构建脚本。
+- `templates/`：其他技能的文档模板。
 
 <details>
 <summary><b>维护者专区</b>（目录规范 / README 规范 / 发版流程 / 上架硬约束）—— 普通使用者不用展开</summary>
