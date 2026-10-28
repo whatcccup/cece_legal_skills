@@ -29,8 +29,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import contract_app_server as S  # noqa: E402
 from docx import Document  # noqa: E402
 
-C01 = ("/Users/agent/Downloads/Contract_Copilot_全部实测用例与问题汇总_20260831/"
-       "02_测试材料/C01/input.docx")
+AUTH = ""
 
 fails = []
 
@@ -53,7 +52,7 @@ def upload(base, path, filename=None):
     body.write(data + b"\r\n" + f"--{b}--\r\n".encode())
     req = urllib.request.Request(
         base + "/api/upload", data=body.getvalue(),
-        headers={"Content-Type": f"multipart/form-data; boundary={b}"}, method="POST")
+        headers={"X-Contract-Token": AUTH, "Content-Type": f"multipart/form-data; boundary={b}"}, method="POST")
     return json.loads(urllib.request.urlopen(req, timeout=600).read())
 
 
@@ -62,9 +61,10 @@ def get(base, p):
 
 
 def post(base, p, payload):
+    if p.startswith("/api/apply/"): payload.setdefault("export_mode", "reversible")
     req = urllib.request.Request(
         base + p, data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json"}, method="POST")
+        headers={"X-Contract-Token": AUTH, "Content-Type": "application/json"}, method="POST")
     return json.loads(urllib.request.urlopen(req, timeout=900).read())
 
 
@@ -85,16 +85,15 @@ def kept_sample(rv, mark):
 
 
 def main():
-    if not os.path.exists(C01):
-        print(f"跳过：找不到样例 {C01}")
-        return 0
-
+    global AUTH
     tmp = tempfile.mkdtemp(prefix="out_dl_")
     src = os.path.join(tmp, "input.docx")
-    shutil.copyfile(C01, src)
-    host, port = "127.0.0.1", 18893
-    base = f"http://{host}:{port}"
+    fixture=Document()
+    for line in S.D._ENTITY_SAMPLE.splitlines(): fixture.add_paragraph(line)
+    fixture.save(src)
+    host, port = "127.0.0.1", 0
     srv = S.start_app_server(host, port, os.path.join(tmp, "sessions"))
+    base=f"http://{host}:{srv.server_port}"; AUTH=srv.RequestHandlerClass.state.token
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     time.sleep(0.4)
 
@@ -117,12 +116,7 @@ def main():
         js = "\n".join(scripts)
         with open(os.path.join(tmp, "review.js"), "w", encoding="utf-8") as f:
             f.write(js)
-        node = None
-        for cand in ("/Users/agent/.workbuddy/binaries/node/versions/22.22.2-2/bin/node",
-                     "/opt/homebrew/bin/node"):
-            if os.path.exists(cand):
-                node = cand
-                break
+        node = shutil.which("node")
         if node:
             rc = os.system(f'"{node}" --check "{tmp}/review.js" > "{tmp}/node.log" 2>&1')
             check("页面 JS 语法检查通过", rc == 0,

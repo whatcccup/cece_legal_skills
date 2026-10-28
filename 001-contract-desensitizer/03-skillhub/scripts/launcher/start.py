@@ -8,7 +8,7 @@
 
 行为：
     1. 找到带依赖的 Python；没有就自动建 .venv 并安装 requirements.txt（仅首次）
-    2. 释放 18800 端口、结束上一次的服务进程
+    2. 检查 18800 端口；占用时提示，不结束其他进程
     3. 启动 contract_app_server.py（完全离线，只监听 127.0.0.1）
     4. 健康检查通过后打开 http://127.0.0.1:18800/
 
@@ -81,24 +81,11 @@ def bootstrap(proj: Path) -> Path:
 
 
 def free_port() -> None:
-    if os.name == "nt":
-        subprocess.run(["cmd", "/c",
-                        f"for /f \"tokens=5\" %a in "
-                        f"('netstat -ano ^| findstr :{PORT} ^| findstr LISTENING') "
-                        f"do taskkill /F /PID %a"],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-        return
-    try:
-        import signal
-        out = subprocess.run(["lsof", "-nP", f"-tiTCP:{PORT}", "-sTCP:LISTEN"],
-                             capture_output=True, text=True, check=False).stdout
-        for pid in out.split():
-            try:
-                os.kill(int(pid), signal.SIGTERM)
-            except (ValueError, OSError):
-                pass
-    except FileNotFoundError:
-        pass
+    with socket.socket() as sock:
+        try:
+            sock.bind(("127.0.0.1", PORT))
+        except OSError:
+            raise SystemExit(f"Port {PORT} is already in use. Use the existing tool, close it from its own window, or set REDACTOR_PORT=18810. No other process was stopped.")
 
 
 def wait_ready(timeout: float = 20.0) -> bool:
@@ -118,11 +105,11 @@ def main() -> int:
     args = ap.parse_args()
 
     proj = project_dir()
+    free_port()
     py = pick_python(proj)
     if py is None:
         py = bootstrap(proj)
 
-    free_port()
     workdir = proj / "sessions"
     workdir.mkdir(exist_ok=True)
 
@@ -149,7 +136,7 @@ def main() -> int:
 
     print(f"✓ 服务已就绪：{APP_URL}")
     webbrowser.open(APP_URL)
-    print("  停止服务：网页右上角「退出」，或重新运行本启动器。")
+    print("  停止服务：网页右上角「退出」，或原启动窗口按 Ctrl-C。")
 
     if args.foreground:
         try:

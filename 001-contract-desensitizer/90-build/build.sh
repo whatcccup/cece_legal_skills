@@ -32,6 +32,7 @@ for f in contract_sensitive_detector.py contract_redactor.py \
   cp "$SRC/$f" "$PKG/scripts/$f" || bad "复制 $f 失败"
 done
 # 启动器 start.py 是技能包专属（.bat/.vbs/.sh 会被上架拦截），手写维护，不参与同步
+cp "$SRC/脱敏规则清单.md" "$PKG/scripts/脱敏规则清单.md" || bad "复制运行规则失败"
 cp "$SRC/脱敏规则清单.md" "$PKG/references/脱敏规则清单.md" || bad "复制规则清单失败"
 cp "$SRC/README.md" "$PKG/references/使用说明.md" || bad "复制使用说明失败"
 cp "$SRC/tests/"*.py "$SRC/tests/"*.js "$PKG/tests/" 2>/dev/null || true

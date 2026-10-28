@@ -62,7 +62,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
-__version__ = "1.0.0"
+__version__ = "1.2.1"
 ENGINE_NAME = "offline-rule-detector"
 
 # ==============================================================================
@@ -313,6 +313,20 @@ TYPE_META: Dict[str, TypeMeta] = {
     # ---- 其他 ----
     "URL": TypeMeta("URL", "网址链接", "其他", "low", 0, 0, priority=24),
 }
+
+
+import threading
+RULES_LOCK = threading.RLock()
+DEFAULT_TYPE_META = dict(TYPE_META)
+
+
+def load_settings(rules_path=None, **kwargs):
+    TYPE_META.clear()
+    TYPE_META.update(DEFAULT_TYPE_META)
+    path = rules_path or os.path.join(os.path.dirname(os.path.abspath(__file__)), "脱敏规则清单.md")
+    settings = Settings(**kwargs)
+    settings.extra_specs = load_rules_md(path)
+    return settings
 
 
 def mask_value(value: str, type_id: str) -> str:
@@ -578,23 +592,17 @@ def docx_para_targets(doct) -> List[Tuple[str, str, Any]]:
 
 
 def extract_docx(path: str, include_headers: bool = True) -> Document:
-    try:
-        from docx import Document as DocxDocument  # type: ignore
-    except ImportError:  # pragma: no cover
-        raise RuntimeError("读取 .docx 需要 python-docx，请先执行： pip install python-docx")
-
-    doct = DocxDocument(path)
-    blocks: List[Block] = []
-    doc_warnings: List[str] = []
-
-    for kind, loc, p in docx_para_targets(doct):
-        text = docx_para_text(p)
-        blocks.append(Block(text=text, block_type=kind, location=loc))
-
+    from docx_text import DocxText, paragraph_map
+    package = DocxText(path)
+    blocks = []
+    for name, paragraph in package.entries:
+        if not include_headers and ('header' in name or 'footer' in name):
+            continue
+        text, _ = paragraph_map(paragraph)
+        blocks.append(Block(text=text, block_type="paragraph", location=f"第 {len(blocks)+1} 段"))
     if not blocks:
-        raise RuntimeError("文档中没有可提取的文字（可能是空文档或图片型文件）")
-    return Document(source=path, file_type="docx", blocks=blocks, sha256=_sha256(path),
-                    warnings=doc_warnings)
+        raise RuntimeError("文档中没有可提取的文字")
+    return Document(source=path, file_type="docx", blocks=blocks, sha256=_sha256(path), warnings=[])
 
 
 # ----------------------------------------------------------------- PDF ---------
@@ -666,6 +674,8 @@ def extract_pdf(path: str) -> Document:
                         blk = None
                     if blk and blk.text.strip():
                         blocks.append(blk)
+                    else:
+                        warnings.append(f"第 {i} 页无可提取文字，需先检查图片或OCR")
                 total = len(pdf.pages)
         except Exception as exc:
             raise RuntimeError(f"PDF 解析失败：{exc}")
@@ -2488,8 +2498,13 @@ def load_rules_md(path: str) -> List[RegexSpec]:
     with open(path, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
+    in_fence = False
     for ln in lines:
         s = ln.strip()
+        if s.startswith('```'):
+            in_fence = not in_fence
+            continue
+        if in_fence: continue
         if not s.startswith("|"):
             continue
         cells = [c.strip().replace("\\|", "|")
@@ -2504,6 +2519,8 @@ def load_rules_md(path: str) -> List[RegexSpec]:
         sev = _SEV_CN.get(cells[3], cells[3].lower())
         enabled = cells[7].lower() in _TRUE or cells[7] in _TRUE
 
+        if type_id not in TYPE_META:
+            TYPE_META[type_id] = TypeMeta(type_id, cells[4][:14] or type_id, cells[2] or "自定义", sev if sev in ("high", "medium", "low") else "medium", 2, 2, priority=50, enabled=enabled)
         if type_id in TYPE_META:
             meta = TYPE_META[type_id]
             kw: Dict[str, Any] = {}
@@ -2526,18 +2543,13 @@ def load_rules_md(path: str) -> List[RegexSpec]:
                     kw["mask_fn"] = NAMED_MASKS[v]
                     kw["replacement"] = None
             TYPE_META[type_id] = dataclasses.replace(meta, **kw)
-        else:
-            # 新类型：需要第 9 列提供正则
+        if type_id not in DEFAULT_TYPE_META:
+            # Custom types retain their regex on every load.
             pattern = cells[8] if len(cells) > 8 else ""
             if not pattern:
                 sys.stderr.write(f"[warn] 规则清单中的未知类型 {type_id} 且未提供正则，已跳过\n")
                 continue
             label = cells[4][:14] or type_id
-            TYPE_META[type_id] = TypeMeta(
-                type_id, label, cells[2] or "自定义",
-                sev if sev in ("high", "medium", "low") else "medium",
-                2, 2, priority=50, enabled=enabled,
-            )
             extra.append(RegexSpec(
                 type_id=type_id, pattern=pattern,
                 conf_ok=0.7, conf_weak=0.4,
@@ -2581,6 +2593,36 @@ def load_config(path: Optional[str]) -> Tuple[Settings, List[RegexSpec]]:
 # ==============================================================================
 # 8. 离线守卫
 # ==============================================================================
+
+def enforce_loopback_only():
+    import socket, ipaddress
+    if getattr(socket, '_contract_loopback_guard', False): return
+    connect, connect_ex, getaddrinfo = socket.socket.connect, socket.socket.connect_ex, socket.getaddrinfo
+    sendto = socket.socket.sendto
+    def allowed(address):
+        host = address[0]
+        try: return ipaddress.ip_address(host).is_loopback
+        except ValueError: return host == 'localhost'
+    def safe_connect(sock, address):
+        if sock.family in (socket.AF_INET, socket.AF_INET6) and not allowed(address):
+            raise RuntimeError('合同处理进程禁止外部网络连接')
+        return connect(sock, address)
+    def safe_connect_ex(sock, address):
+        if sock.family in (socket.AF_INET, socket.AF_INET6) and not allowed(address):
+            raise RuntimeError('合同处理进程禁止外部网络连接')
+        return connect_ex(sock, address)
+    def safe_getaddrinfo(host, port, *args, **kwargs):
+        if host is not None and not allowed((host, port)):
+            raise RuntimeError('合同处理进程禁止外部DNS查询')
+        return getaddrinfo(host, port, *args, **kwargs)
+    def safe_sendto(sock, data, *args):
+        if sock.family in (socket.AF_INET, socket.AF_INET6) and not allowed(args[-1]):
+            raise RuntimeError('合同处理进程禁止外部UDP发送')
+        return sendto(sock, data, *args)
+    socket.socket.sendto=safe_sendto
+    socket.socket.connect=safe_connect; socket.socket.connect_ex=safe_connect_ex
+    socket.getaddrinfo=safe_getaddrinfo; socket._contract_loopback_guard=True
+
 
 def enforce_offline() -> None:
     """禁用 socket，任何联网尝试立即抛错 —— 从机制层面保证不外传。"""

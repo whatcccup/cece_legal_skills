@@ -15,7 +15,7 @@ from typing import Any, Dict
 
 APP_TITLE = "合同脱敏 / 还原"
 APP_SUBTITLE = "Contract Redactor"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.1"
 
 esc = _html.escape
 
@@ -72,6 +72,12 @@ HERO_ART = """<svg class="hero-art" viewBox="0 0 360 210" fill="none" aria-hidde
 # =============================================================== CSS ==========
 
 CSS = r"""
+.pair-focus{outline:2px solid #5963e9;outline-offset:3px}
+.loc{cursor:pointer}
+
+[hidden]{display:none!important}
+.out-row select{max-width:100%;padding:8px;border:1px solid var(--line);border-radius:6px}
+
 :root{
   --bg:#eef1f8;
   --surface:#ffffff;
@@ -506,7 +512,7 @@ UPLOAD_BODY = r"""
   <div class="hero-copy">
     <span class="eyebrow">本地离线 · 无需联网</span>
     <h1>合同脱敏 / 还原</h1>
-    <p>上传 Word / PDF / 文本合同，自动识别身份证号、手机号、姓名、地址、金额等敏感信息，一键替换为<b>可逆占位符</b>；需要时再把占位符精确还原回原文，批注与修订全部保留。</p>
+    <p>上传 Word / PDF / 文本合同，自动识别敏感信息，复核后按用途导出。默认<b>对外脱敏稿不附带还原映射</b>；需要还原时选择内部可逆 Word 稿。</p>
   </div>
   __HERO_ART__
 </section>
@@ -521,12 +527,12 @@ UPLOAD_BODY = r"""
           <div class="mode active" data-mode="redact">
             <div class="ic">🔒</div>
             <div class="name">脱敏模式</div>
-            <div class="desc">上传<strong>原始</strong>合同 → 自动进入左右对比页 → 确认后输出 <code>合同_脱敏.docx</code> 与映射文件。</div>
+            <div class="desc">上传<strong>原始</strong>合同 → 自动进入左右对比页 → 确认后选择对外脱敏稿或内部可逆稿。</div>
           </div>
           <div class="mode" data-mode="restore">
             <div class="ic">🔓</div>
             <div class="name">还原模式</div>
-            <div class="desc">上传<strong>已脱敏</strong>的合同，自动在文档内部寻找映射材料并回填原文，输出 <code>合同_还原.docx</code>。</div>
+            <div class="desc">上传<strong>内部可逆 Word 稿</strong>，自动寻找文档内映射并回填原文，输出还原稿。</div>
           </div>
         </div>
       </div>
@@ -578,7 +584,7 @@ UPLOAD_BODY = r"""
           <li>不需要任何网络连接，<b>不调用大模型与云端接口</b></li>
           <li>只监听 <code>127.0.0.1</code>，外部设备无法访问</li>
           <li>处理结果落盘在本地会话目录，可随时清理</li>
-          <li>还原只改写正文文字，不动批注 / 修订 / 样式</li>
+          <li>正文、批注和修订文字纳入识别；复杂排版请用副本核对</li>
         </ul>
       </div>
 
@@ -587,8 +593,8 @@ UPLOAD_BODY = r"""
         <ol class="olist">
           <li><span class="n">1</span><span>选择模式并上传合同</span></li>
           <li><span class="n">2</span><span>在左右对比页核对识别结果，按类型 / 严重度筛选，可单独取消某处</span></li>
-          <li><span class="n">3</span><span>点击确认，生成脱敏文件与映射材料</span></li>
-          <li><span class="n">4</span><span>需要原文时上传脱敏稿，一键还原</span></li>
+          <li><span class="n">3</span><span>选择导出用途，生成对应文件</span></li>
+          <li><span class="n">4</span><span>需要还原时上传内部可逆 Word 稿</span></li>
         </ol>
       </div>
     </div>
@@ -692,12 +698,12 @@ __HINT__
     <div class="mode __REDACT_ACTIVE__" data-mode="redact">
       <div class="ic">🔒</div>
       <div class="name">脱敏</div>
-      <div class="desc">识别敏感信息并生成可逆占位符，输出 <code>合同_脱敏.docx</code>；映射材料会同步写进文档内部，<b>无须额外保管文件</b>。</div>
+      <div class="desc">识别敏感信息，默认导出不带还原映射的对外稿；内部可逆稿另行选择，<b>含原文映射，不宜外发</b>。</div>
     </div>
     <div class="mode __RESTORE_ACTIVE__" data-mode="restore">
       <div class="ic">🔓</div>
       <div class="name">还原</div>
-      <div class="desc">把脱敏稿里的占位符回填为原文，输出 <code>合同_还原.docx</code>；批注 / 审阅 / 修订等原有元素完全保留。</div>
+      <div class="desc">把内部可逆 Word 稿里的占位符回填为原文，输出还原稿；还原后请核对文字和排版。</div>
     </div>
   </div>
 </div>
@@ -727,6 +733,7 @@ __HINT__
 
 <script>
 var SID='__SID__', FILE='__FILENAME__';
+function esc(s){return String(s).replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c];});}
 function goMode(m){
   Array.prototype.forEach.call(document.querySelectorAll('#mode-picker .mode'),function(el){
     el.classList.toggle('active', el.getAttribute('data-mode')===m);
@@ -740,7 +747,7 @@ Array.prototype.forEach.call(document.querySelectorAll('#mode-picker .mode'),fun
 
 function okBox(url,name,extra){
   return '<div class="alert ok"><span class="i">✓</span><span>还原完成，共替换 '+extra+' 处。'+
-         '<a class="btn ok sm" style="margin-left:10px" href="'+url+'">下载 '+name+'</a></span></div>';
+         '<a class="btn ok sm" style="margin-left:10px" href="'+url+'">下载 '+esc(name)+'</a></span></div>';
 }
 async function runRestore(){
   var out=document.getElementById('restore-msg');
@@ -752,9 +759,9 @@ async function runRestore(){
       var warn=(j.missing&&j.missing.length)?('<div class="alert warn" style="margin-top:10px"><span class="i">⚠</span><span>有 '+j.missing.length+' 个占位符未在文档中找到，可能已被手工修改。</span></div>'):'';
       out.innerHTML=okBox(j.output_url,j.output_name,j.applied)+warn;
     }else{
-      out.innerHTML='<div class="alert err"><span class="i">✗</span><span>还原失败：'+(j.error||'未知错误')+'</span></div>';
+      out.innerHTML='<div class="alert err"><span class="i">✗</span><span>还原失败：'+esc(j.error||'未知错误')+'</span></div>';
     }
-  }catch(e){ out.innerHTML='<div class="alert err"><span class="i">✗</span><span>请求失败：'+String(e)+'</span></div>'; }
+  }catch(e){ out.innerHTML='<div class="alert err"><span class="i">✗</span><span>请求失败：'+esc(String(e))+'</span></div>'; }
 }
 async function uploadAndRestore(){
   var file=document.getElementById('manual-mapping').files[0];
@@ -766,8 +773,8 @@ async function uploadAndRestore(){
     var r=await fetch('/api/restore/'+SID,{method:'POST',body:fd});
     var j=await r.json();
     if(j.ok){ out.innerHTML=okBox(j.output_url,j.output_name,j.applied); }
-    else{ out.innerHTML='<div class="alert err"><span class="i">✗</span><span>还原失败：'+(j.error||'未知错误')+'</span></div>'; }
-  }catch(e){ out.innerHTML='<div class="alert err"><span class="i">✗</span><span>请求失败：'+String(e)+'</span></div>'; }
+    else{ out.innerHTML='<div class="alert err"><span class="i">✗</span><span>还原失败：'+esc(j.error||'未知错误')+'</span></div>'; }
+  }catch(e){ out.innerHTML='<div class="alert err"><span class="i">✗</span><span>请求失败：'+esc(String(e))+'</span></div>'; }
 }
 goMode('__INIT_MODE__');
 </script>
@@ -867,11 +874,11 @@ REVIEW_BODY = r"""
 
 <div class="compare">
   <div class="pane">
-    <div class="pane-head"><span class="sw"></span>原文 · 彩色高亮 = 会被替换；点击高亮可取消该处</div>
+    <div class="pane-head"><span class="sw"></span>原文 · 彩色高亮 = 会被替换；点击高亮可取消该处并定位两侧</div>
     <div class="pane-body doc" id="left"></div>
   </div>
   <div class="pane">
-    <div class="pane-head"><span class="sw alt"></span>脱敏后 · 占位符预览（随勾选实时变化）</div>
+    <div class="pane-head"><span class="sw alt"></span>脱敏后 · 占位符预览（点击定位原文）</div>
     <div class="pane-body doc" id="right"></div>
   </div>
 </div>
@@ -884,8 +891,10 @@ REVIEW_BODY = r"""
     <span class="stat" id="stat"></span>
   </div>
   <div class="out-row">
-    <label class="chk locked" title="脱敏文件为必选项"><input type="checkbox" id="optDoc" checked disabled><span>脱敏文件 <b>*.docx</b></span></label>
-    <label class="chk" id="jsonWrap" title="取消勾选后只输出脱敏稿；映射材料仍嵌在文档内部，可随时还原，但请自行留意保管。"><input type="checkbox" id="optJson" checked><span>映射文件 <b>*.mapping.json</b>（还原用，建议保留）</span></label>
+    <label class="chk locked" title="脱敏文件为必选项"><input type="checkbox" id="optDoc" checked disabled><span>脱敏文件（与输入格式一致）</span></label>
+    <label class="chk">导出用途 <select id="exportMode"><option value="external">对外脱敏稿（无还原映射）</option><option value="reversible" __REVERSIBLE_DISABLED__>内部可逆稿（仅 Word，含原文映射）</option></select></label>
+    <p class="stat">对外稿会清理自定义 XML 与文档元数据；嵌入附件需先移除。图片中的文字不在自动识别范围。</p>
+    <label class="chk" id="jsonWrap" hidden title="仅内部可逆稿附带映射，包含原文，应分开保管。"><input type="checkbox" id="optJson" checked><span>映射文件 <b>*.mapping.json</b>（还原用，建议保留）</span></label>
     <button type="button" class="btn sm ghost" id="pickDir" title="选择一个文件夹后，两个文件会直接存进去，不再弹出下载框；建议选择「上传合同所在的文件夹」">选择保存文件夹…</button>
     <span class="folder" id="dirState">未选择 → 下载到浏览器默认下载目录（建议选原合同所在文件夹）</span>
   </div>
@@ -937,6 +946,7 @@ function render(){
     b.classList.toggle('on', b.getAttribute('data-sev')===sev);
   });
   renderTypes();
+  var savedLeft=document.getElementById('left').scrollTop,savedRight=document.getElementById('right').scrollTop;
   var left=[],right=[],n=0,lastLoc=null;
   DATA.blocks.forEach(function(b,bi){
     var ms0=b.marks||[];
@@ -955,16 +965,16 @@ function render(){
       if(enabled.has(m.t)&&itemEnabled.get(bi+':'+mi)){
         n++;
         L+='<mark class="'+m.sev+'" data-bk="'+bi+'" data-mi="'+mi+'" title="点击取消该处">'+esc(b.text.slice(ls,le))+'</mark>';
-        R+='<mark class="ph sev-'+m.sev+'" title="'+esc(m.label)+'">'+esc(m.placeholder||m.masked)+'</mark>';
+        R+='<mark class="ph sev-'+m.sev+'" data-bk="'+bi+'" data-mi="'+mi+'" title="点击定位原文">'+esc(m.placeholder||m.masked)+'</mark>';
       }else{
         L+='<span class="off" data-bk="'+bi+'" data-mi="'+mi+'" title="点击恢复该处">'+esc(b.text.slice(ls,le))+'</span>';
-        R+=esc(b.text.slice(ls,le));
+        R+='<span class="off" data-bk="'+bi+'" data-mi="'+mi+'">'+esc(b.text.slice(ls,le))+'</span>';
       }
       pos=le;
     });
     L+=esc(b.text.slice(pos)); R+=esc(b.text.slice(pos));
-    left.push('<div class="blk">'+head+(L||'&nbsp;')+'</div>');
-    right.push('<div class="blk">'+head+(R||'&nbsp;')+'</div>');
+    left.push('<div class="blk" data-block="'+bi+'">'+head+(L||'&nbsp;')+'</div>');
+    right.push('<div class="blk" data-block="'+bi+'">'+head+(R||'&nbsp;')+'</div>');
   });
   var lEl=document.getElementById('left'), rEl=document.getElementById('right');
   if(!DATA.blocks.length){
@@ -974,29 +984,52 @@ function render(){
     lEl.innerHTML=left.join('');
     rEl.innerHTML=right.join('');
   }
-  Array.prototype.forEach.call(document.querySelectorAll('mark[data-bk]'),function(el){
-    el.addEventListener('click',function(){
-      itemEnabled.set(el.getAttribute('data-bk')+':'+el.getAttribute('data-mi'),false); render();
-    });
+  lEl.scrollTop=savedLeft;rEl.scrollTop=savedRight;
+  Array.prototype.forEach.call(document.querySelectorAll('[data-bk][data-mi]'),function(el){
+    el.setAttribute('tabindex','0');el.setAttribute('role','button');
+    function activate(){
+      var bk=el.getAttribute('data-bk'),mi=el.getAttribute('data-mi');
+      if(el.closest('#left')){itemEnabled.set(bk+':'+mi,!itemEnabled.get(bk+':'+mi));render();}
+      focusPair(bk,mi);
+    }
+    el.addEventListener('click',activate);
+    el.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();activate();}});
   });
-  Array.prototype.forEach.call(document.querySelectorAll('span.off[data-bk]'),function(el){
-    el.addEventListener('click',function(){
-      itemEnabled.set(el.getAttribute('data-bk')+':'+el.getAttribute('data-mi'),true); render();
-    });
+  Array.prototype.forEach.call(document.querySelectorAll('.loc'),function(el){
+    el.addEventListener('click',function(){focusPair(el.closest('[data-block]').getAttribute('data-block'),null);});
   });
   document.getElementById('stat').innerHTML='将替换 <b>'+n+'</b> 处 · 生效类型 <b>'+enabled.size+'</b> 类';
 }
 
-/* 左右同步滚动 */
+/* Pair anchors, not equal pixel offsets: replacement lengths change wrapping. */
+var pairedScrollLock=false;
+function focusPair(block,mark){
+  pairedScrollLock=true;
+  document.querySelectorAll('.pair-focus').forEach(function(el){el.classList.remove('pair-focus');});
+  ['left','right'].forEach(function(id){
+    var pane=document.getElementById(id);
+    var selector=mark==null?'[data-block="'+block+'"]':'[data-bk="'+block+'"][data-mi="'+mark+'"]';
+    var target=pane.querySelector(selector);if(!target)return;
+    target.classList.add('pair-focus');
+    pane.scrollTo({top:pane.scrollTop+target.getBoundingClientRect().top-pane.getBoundingClientRect().top-60,behavior:'auto'});
+  });
+  requestAnimationFrame(function(){pairedScrollLock=false;});
+}
 (function(){
-  var l=document.getElementById('left'), r=document.getElementById('right'), lock=false;
-  function link(a,b){
-    a.addEventListener('scroll',function(){
-      if(lock) return; lock=true; b.scrollTop=a.scrollTop; b.scrollLeft=a.scrollLeft;
-      setTimeout(function(){lock=false;},30);
-    });
-  }
-  link(l,r); link(r,l);
+  function link(a,b){a.addEventListener('scroll',function(){
+    if(pairedScrollLock)return;
+    var blocks=Array.from(a.querySelectorAll('[data-block]'));
+    var top=a.getBoundingClientRect().top;
+    var anchor=blocks.find(function(x){return x.getBoundingClientRect().bottom>top+1;});
+    if(!anchor)return;
+    var peer=b.querySelector('[data-block="'+anchor.getAttribute('data-block')+'"]');if(!peer)return;
+    var fraction=(top-anchor.getBoundingClientRect().top)/Math.max(1,anchor.offsetHeight);
+    pairedScrollLock=true;
+    b.scrollTop=b.scrollTop+peer.getBoundingClientRect().top-b.getBoundingClientRect().top+fraction*peer.offsetHeight;
+    requestAnimationFrame(function(){pairedScrollLock=false;});
+  });}
+  link(document.getElementById('left'),document.getElementById('right'));
+  link(document.getElementById('right'),document.getElementById('left'));
 })();
 
 Array.prototype.forEach.call(document.querySelectorAll('.seg-btn'),function(b){
@@ -1022,6 +1055,8 @@ document.getElementById('resetMarks').addEventListener('click',function(){
 // 手段：① 用户若选过文件夹 → 用 File System Access API 直接写入该文件夹
 //          （127.0.0.1 属安全上下文，Chrome/Edge 可用；不再弹下载框）
 //       ② 否则 → 依次触发两个文件的浏览器下载（兜底，任何浏览器都可）
+var exportMode = document.getElementById('exportMode');
+exportMode.addEventListener('change', function(){document.getElementById('jsonWrap').hidden=exportMode.value!=='reversible';});
 var dirHandle = null;
 var pickBtn = document.getElementById('pickDir');
 var dirStateEl = document.getElementById('dirState');
@@ -1042,7 +1077,7 @@ pickBtn.addEventListener('click', async function(){
     }
     dirHandle = h;
     dirStateEl.className = 'folder on';
-    dirStateEl.innerHTML = '已选择文件夹：<code>' + esc(h.name) + '</code>（两个文件都会存到这里）';
+    dirStateEl.innerHTML = '已选择文件夹：<code>' + esc(h.name) + '</code>（按导出用途保存文件）';
     pickBtn.textContent = '更换文件夹…';
   }catch(e){ /* 用户取消选择，保持原状 */ }
 });
@@ -1117,7 +1152,7 @@ function renderSaved(sv, j){
   }
   return '<div class="saved">' +
     '<div class="ln">' + head + '</div>' + lines +
-    '<div class="ln" style="color:var(--faint)">提示：mapping.json 已同时嵌入脱敏稿内部，日后直接上传脱敏稿即可一键还原。</div>' +
+    (j.mapping_url ? '<div class="ln">内部可逆稿包含原文映射，请勿直接外发。</div>' : '<div class="ln">对外稿未附带还原映射；发送前仍须人工通读。</div>') +
     '</div>';
 }
 
@@ -1132,10 +1167,10 @@ document.getElementById('go').addEventListener('click',async function(){
     });
   });
   btn.disabled=true;
-  out.innerHTML='<div class="alert info"><span class="i">⏳</span><span>正在生成脱敏文件并写入映射材料…</span></div>';
+  out.innerHTML='<div class="alert info"><span class="i">⏳</span><span>正在按所选用途生成脱敏文件…</span></div>';
   try{
     // 与上传时的识别参数保持一致：否则服务端重扫得到的偏移会与这里的位置白名单对不上
-    var sel={enabled_types:Array.from(enabled),
+    var sel={export_mode:exportMode.value,enabled_types:Array.from(enabled),
              min_confidence:(DATA.min_confidence||0.5),
              min_severity:(DATA.min_severity||'low'),
              items:enabledItems};
@@ -1179,6 +1214,7 @@ def build_review_page(sid: str, info: Dict[str, Any]) -> bytes:
             .replace("__TYPES__", str(types_n))
             .replace("__OCC__", str(occ_n))
             .replace("__SID__", esc(sid))
+            .replace("__REVERSIBLE_DISABLED__", "" if name.lower().endswith(".docx") else "disabled")
             .replace("__DATA__", data_json))
     return html_doc("左右对比 · " + name, body,
                     mid='<span class="pill">' + esc(name) + '</span>')
