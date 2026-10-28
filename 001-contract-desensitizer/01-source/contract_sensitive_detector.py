@@ -62,7 +62,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 ENGINE_NAME = "offline-rule-detector"
 
 # ==============================================================================

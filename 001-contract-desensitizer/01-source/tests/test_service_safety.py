@@ -18,19 +18,19 @@ class Service(unittest.TestCase):
   for headers in [{'Host':'untrusted.example','X-Contract-Token':self.token},{'Origin':'https://untrusted.example','X-Contract-Token':self.token},{}]:self.assertEqual(self.request('/api/upload',headers=headers)[0],403)
  def test_oversize_rejected_before_body_sent(self):
   self.assertEqual(self.request('/api/upload',headers={'X-Contract-Token':self.token,'Content-Length':str(S.MAX_UPLOAD_BYTES+2*1024*1024)})[0],413)
- def test_default_external_and_explicit_reversible(self):
+ def test_every_export_has_separate_mapping_and_no_embedded_originals(self):
   sid=self.upload()
   for mode in [None,'reversible']:
    req={'enabled_types':['PHONE_MOBILE']}
    if mode:req['export_mode']=mode
    code,data=self.request('/api/apply/'+sid,json.dumps(req),{'X-Contract-Token':self.token,'Content-Type':'application/json'});self.assertEqual(code,200,data);r=json.loads(data)
-   self.assertEqual(bool(r['mapping_url']),bool(mode))
+   self.assertTrue(r['mapping_url'])
    if mode is None: external_url=r['output_url']
-   else: self.assertNotEqual(r['output_url'],external_url)
+   else: self.assertEqual(r['output_url'],external_url)
    code,blob=self.request(r['output_url'],method='GET');self.assertEqual(code,200)
    with zipfile.ZipFile(io.BytesIO(blob)) as z:
-    self.assertEqual('customXml/mapping.json' in z.namelist(),bool(mode))
-    if not mode:self.assertFalse(any(b'13800138000' in z.read(n) for n in z.namelist()))
+    self.assertNotIn('customXml/mapping.json', z.namelist())
+    self.assertFalse(any(b'13800138000' in z.read(n) for n in z.namelist()))
   code,blob=self.request(external_url,method='GET')
   with zipfile.ZipFile(io.BytesIO(blob)) as z:self.assertNotIn('customXml/mapping.json',z.namelist())
  def test_web_rule_loaded_twice(self):

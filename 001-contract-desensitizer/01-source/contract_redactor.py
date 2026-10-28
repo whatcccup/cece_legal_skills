@@ -74,7 +74,7 @@ from contract_sensitive_detector import (
 
 # --------------------------------------------------------------------- 常量 --
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 ENGINE_NAME = "contract_redactor"
 
 
@@ -357,15 +357,16 @@ def redact_file(source: str,
 
     restore_mode=True 时
     ------------------
-    改写后的 docx / pdf 把所有替换项写成 [label#N] 占位符，并**额外**在同目录
+    改写后的 docx / pdf 把所有替换项写成 [label#N] 占位符，并在同目录
     输出 <stem>.mapping.json，之后可用 restore_file() 一次性还原回原文
-    （占位符 ↔ 原文一一对应）。当源是 .pdf 时，占位符会落在栅格化后的图片层上，
+    （占位符 ↔ 原文一一对应）。原文映射只保存在 JSON，不嵌入 Word。当源是 .pdf 时，占位符会落在栅格化后的图片层上，
     所以 **PDF 模式仅占位生成 mapping，不实际写「占位 docx」**；可还原的始终是 docx。
     """
     if export_mode not in (None, "external", "reversible"):
         raise ValueError("未知导出模式")
-    if export_mode == "reversible" and os.path.splitext(source)[1].lower() != ".docx":
-        raise ValueError("自动还原仅支持 Word，请使用对外导出")
+    # Old callers remain compatible, but no new document may embed original data.
+    if export_mode == "reversible" or (restore_mode and export_mode is None):
+        export_mode = "external"
     if export_mode:
         restore_mode = True
     if export_mode == "external":
@@ -458,7 +459,7 @@ def redact_file(source: str,
     if not out_path:
         stem = os.path.splitext(os.path.basename(source))[0]
         out_path = os.path.join(os.path.dirname(source) or ".",
-                                f"{stem}_{'对外脱敏' if export_mode == 'external' else '内部可逆' if export_mode == 'reversible' else '脱敏'}{ext or '.txt'}")
+                                f"{stem}_脱敏{ext or '.txt'}")
 
     if os.path.realpath(source) == os.path.realpath(out_path):
         raise ValueError("输出路径不能覆盖原文件")
@@ -471,10 +472,9 @@ def redact_file(source: str,
     if ext == ".docx" and export_mode == "external":
         clean = DocxText(out_path); clean.sanitize_external(); clean.save(out_path)
 
-    # 7.b) restore_mode：写 mapping.json + 把 mapping 嵌入 docx (customXml)
+    # 7.b) 原文映射只写入单独 JSON，绝不嵌入脱敏 Word。
     mapping_path: Optional[str] = None
-    embedded_ok = False
-    if restore_mode and export_mode != "external":
+    if restore_mode:
         mapping_path = out_path + ".mapping.json"
         sha = ""
         try:
@@ -493,9 +493,6 @@ def redact_file(source: str,
         }
         with open(mapping_path, "w", encoding="utf-8") as f:
             json.dump(mapping_payload, f, ensure_ascii=False, indent=2)
-        # docx 才支持嵌入 mapping；pdf / txt 仅落在外部文件
-        if ext == ".docx":
-            embedded_ok = embed_mapping_in_docx(out_path, mapping_payload)
 
     # 8) 写审计日志
     log_path = None
@@ -525,7 +522,7 @@ def redact_file(source: str,
         "skipped": result["skipped"],
         "log": log_path,
         "mapping": mapping_path,
-        "mapping_embedded": embedded_ok,
+        "mapping_embedded": False,
         "restore_mode": bool(restore_mode),
     }
 
@@ -987,7 +984,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--doc-root", default=".", help="serve 模式下输出文件所在目录")
     ap.add_argument("--app-workdir", default=None,
                     help="应用模式下的会话工作目录（默认 ./contract_app_sessions）")
-    ap.add_argument("--export-mode", choices=["external", "reversible"], default="external")
+    ap.add_argument("--export-mode", choices=["external"], default="external", help="脱敏文件与还原 JSON 分开保存")
     ap.add_argument("--restore-mode", action="store_true",
                     help="脱敏时使用 [label#N] 占位符，并写出 mapping.json 以便还原")
     ap.add_argument("--restore", action="store_true",
@@ -1067,7 +1064,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             allowlist=list(allowlist),
             write_log=not args.no_log,
             restore_mode=args.restore_mode,
-            export_mode="reversible" if args.restore_mode else args.export_mode,
+            export_mode=args.export_mode,
         )
     except Exception as e:
         print(f"[错误] 改写失败：{e}", file=sys.stderr)

@@ -15,7 +15,7 @@ from typing import Any, Dict
 
 APP_TITLE = "合同脱敏 / 还原"
 APP_SUBTITLE = "Contract Redactor"
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.4.0"
 
 esc = _html.escape
 
@@ -521,7 +521,7 @@ UPLOAD_BODY = r"""
   <div class="hero-copy">
     <span class="eyebrow">本地离线 · 无需联网</span>
     <h1>合同脱敏 / 还原</h1>
-    <p>上传 Word / PDF / 文本合同，自动识别敏感信息，复核后按用途导出。默认<b>对外脱敏稿不附带还原映射</b>；需要还原时选择内部可逆 Word 稿。</p>
+    <p>上传 Word / PDF / 文本合同，自动识别敏感信息，逐项复核后保存。同时保存<b>脱敏文件和还原 JSON</b>。脱敏文件复核后可发给 AI；JSON 含敏感原文，不可外发。</p>
   </div>
   __HERO_ART__
 </section>
@@ -536,12 +536,12 @@ UPLOAD_BODY = r"""
           <div class="mode active" data-mode="redact">
             <div class="ic">🔒</div>
             <div class="name">脱敏模式</div>
-            <div class="desc">上传<strong>原始</strong>合同 → 自动进入左右对比页 → 确认后选择对外脱敏稿或内部可逆稿。</div>
+            <div class="desc">上传<strong>原始</strong>合同 → 自动进入左右对比页 → 确认后同时保存脱敏文件与还原 JSON。</div>
           </div>
           <div class="mode" data-mode="restore">
             <div class="ic">🔓</div>
             <div class="name">还原模式</div>
-            <div class="desc">上传<strong>内部可逆 Word 稿</strong>，自动寻找文档内映射并回填原文，输出还原稿。</div>
+            <div class="desc">选择<strong>脱敏 Word 文件</strong>及对应 JSON，回填原文并输出还原稿。</div>
           </div>
         </div>
       </div>
@@ -550,7 +550,7 @@ UPLOAD_BODY = r"""
         <h2><span class="step-n">2</span>上传合同文件</h2>
         <div class="drop" id="drop">
           <div class="ic">📄</div>
-          <p class="t">把文件拖到这里，或点击选择</p>
+          <p class="t">点击选择合同文件（浏览器版也支持拖入）</p>
           <p class="h">支持 .docx / .pdf / .txt · 单个文件不超过 100 MB</p>
           <input type="file" name="file" id="file-input" accept=".docx,.pdf,.txt,.md">
         </div>
@@ -602,8 +602,8 @@ UPLOAD_BODY = r"""
         <ol class="olist">
           <li><span class="n">1</span><span>选择模式并上传合同</span></li>
           <li><span class="n">2</span><span>在左右对比页核对识别结果，按类型 / 严重度筛选，可单独取消某处</span></li>
-          <li><span class="n">3</span><span>选择导出用途，生成对应文件</span></li>
-          <li><span class="n">4</span><span>需要还原时上传内部可逆 Word 稿</span></li>
+          <li><span class="n">3</span><span>同时保存脱敏文件和还原 JSON</span></li>
+          <li><span class="n">4</span><span>需要还原时选择脱敏 Word 与对应 JSON</span></li>
         </ol>
       </div>
     </div>
@@ -622,6 +622,7 @@ var drop=document.getElementById('drop'),
 var LABEL={redact:'进入左右对比 →',restore:'上传并还原 →'};
 
 function syncBtn(){
+  if(window.CONTRACT_DESKTOP){submitBtn.disabled=false;submitBtn.textContent='选择合同…';return;}
   var has=fileInput.files && fileInput.files.length;
   submitBtn.disabled=!has;
   submitBtn.textContent=LABEL[modeInput.value]||'下一步';
@@ -645,16 +646,35 @@ function showFile(f){
   syncBtn();
 }
 fileInput.addEventListener('change',function(){ showFile(fileInput.files[0]); });
-drop.addEventListener('click',function(){ fileInput.click(); });
+async function openNativeContract(){
+  if(submitBtn.disabled && submitBtn.dataset.busy) return;
+  submitBtn.dataset.busy='1'; submitBtn.disabled=true;
+  resultEl.textContent='请在系统窗口选择合同，然后等待识别完成。';
+  try{
+    var response=await fetch('/api/native/open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:modeInput.value})});
+    var j=await response.json();
+    if(!j.ok) throw new Error(j.error||'无法打开文件');
+    if(j.cancelled){resultEl.textContent='已取消选择，未处理任何文件。';return;}
+    location.href=j.mode==='restore' ? j.redirect : '/review?sid='+j.sid;
+  }catch(e){resultEl.textContent=String(e.message||e);}
+  finally{delete submitBtn.dataset.busy; submitBtn.disabled=false;}
+}
+if(window.CONTRACT_DESKTOP){
+  submitBtn.disabled=false; submitBtn.textContent='选择合同…';
+  hint.textContent='打开系统文件窗口；保存时默认打开原合同所在文件夹。';
+}
+drop.addEventListener('click',function(){ if(window.CONTRACT_DESKTOP) openNativeContract(); else fileInput.click(); });
 drop.addEventListener('dragover',function(e){ e.preventDefault(); drop.classList.add('drag'); });
 drop.addEventListener('dragleave',function(){ drop.classList.remove('drag'); });
 drop.addEventListener('drop',function(e){
   e.preventDefault(); drop.classList.remove('drag');
+  if(window.CONTRACT_DESKTOP){resultEl.textContent='请点击选择合同，通过系统文件窗口保留原文件位置。'; return;}
   if(e.dataTransfer.files && e.dataTransfer.files.length){ fileInput.files=e.dataTransfer.files; showFile(e.dataTransfer.files[0]); }
 });
 
 document.getElementById('upload-form').addEventListener('submit',async function(ev){
   ev.preventDefault();
+  if(window.CONTRACT_DESKTOP){await openNativeContract();return;}
   var f=fileInput.files[0];
   if(!f){ return; }
   submitBtn.disabled=true;
@@ -707,12 +727,12 @@ __HINT__
     <div class="mode __REDACT_ACTIVE__" data-mode="redact">
       <div class="ic">🔒</div>
       <div class="name">脱敏</div>
-      <div class="desc">识别敏感信息，默认导出不带还原映射的对外稿；内部可逆稿另行选择，<b>含原文映射，不宜外发</b>。</div>
+      <div class="desc">识别敏感信息，同时保存脱敏文件和 JSON。<b>脱敏文件可外发；JSON 含原文，不可外发。</b></div>
     </div>
     <div class="mode __RESTORE_ACTIVE__" data-mode="restore">
       <div class="ic">🔓</div>
       <div class="name">还原</div>
-      <div class="desc">把内部可逆 Word 稿里的占位符回填为原文，输出还原稿；还原后请核对文字和排版。</div>
+      <div class="desc">用单独保管的 JSON，把脱敏 Word 中的占位符回填为原文，输出还原稿；还原后请核对文字和排版。</div>
     </div>
   </div>
 </div>
@@ -901,9 +921,8 @@ REVIEW_BODY = r"""
   </div>
   <div class="out-row">
     <label class="chk locked" title="脱敏文件为必选项"><input type="checkbox" id="optDoc" checked disabled><span>脱敏文件（与输入格式一致）</span></label>
-    <label class="chk">导出用途 <select id="exportMode"><option value="external">对外脱敏稿（无还原映射）</option><option value="reversible" __REVERSIBLE_DISABLED__>内部可逆稿（仅 Word，含原文映射）</option></select></label>
-    <p class="stat">对外稿会清理自定义 XML 与文档元数据；嵌入附件需先移除。图片中的文字不在自动识别范围。</p>
-    <label class="chk" id="jsonWrap" hidden title="仅内部可逆稿附带映射，包含原文，应分开保管。"><input type="checkbox" id="optJson" checked><span>映射文件 <b>*.mapping.json</b>（还原用，建议保留）</span></label>
+    <p class="stat"><b>脱敏文件：复核后可外发或提供给 AI。JSON：含敏感原文，不可外发或提供给 AI，请单独保管。</b><br>两个文件会同时保存。Word 不内嵌原文映射，并清理自定义 XML 与文档元数据；图片文字仍须人工检查。</p>
+    <label class="chk locked" title="JSON 含敏感原文，仅供本地还原，不可外发"><input type="checkbox" id="optJson" checked disabled><span>还原文件 <b>*.mapping.json</b>（不可外发）</span></label>
     <button type="button" class="btn sm ghost" id="pickDir" title="选择一个文件夹后，两个文件会直接存进去，不再弹出下载框；建议选择「上传合同所在的文件夹」">选择保存文件夹…</button>
     <span class="folder" id="dirState">未选择 → 下载到浏览器默认下载目录（建议选原合同所在文件夹）</span>
   </div>
@@ -1064,14 +1083,16 @@ document.getElementById('resetMarks').addEventListener('click',function(){
 // 手段：① 用户若选过文件夹 → 用 File System Access API 直接写入该文件夹
 //          （127.0.0.1 属安全上下文，Chrome/Edge 可用；不再弹下载框）
 //       ② 否则 → 依次触发两个文件的浏览器下载（兜底，任何浏览器都可）
-var exportMode = document.getElementById('exportMode');
-exportMode.addEventListener('change', function(){document.getElementById('jsonWrap').hidden=exportMode.value!=='reversible';});
+var lastExport = null;
 var dirHandle = null;
 var pickBtn = document.getElementById('pickDir');
 var dirStateEl = document.getElementById('dirState');
 var FSA_OK = !!(window && window.showDirectoryPicker);
 
-if(!FSA_OK){
+if(window.CONTRACT_DESKTOP){
+  pickBtn.hidden = true; pickBtn.style.display = "none";
+  dirStateEl.textContent = "完成后弹出系统保存窗口，默认打开原合同所在文件夹；同时保存脱敏文件和 JSON。";
+}else if(!FSA_OK){
   pickBtn.disabled = true;
   pickBtn.textContent = '当前浏览器不支持选文件夹';
   pickBtn.title = '将直接下载到浏览器默认下载目录';
@@ -1086,7 +1107,7 @@ pickBtn.addEventListener('click', async function(){
     }
     dirHandle = h;
     dirStateEl.className = 'folder on';
-    dirStateEl.innerHTML = '已选择文件夹：<code>' + esc(h.name) + '</code>（按导出用途保存文件）';
+    dirStateEl.innerHTML = '已选择文件夹：<code>' + esc(h.name) + '</code>（脱敏文件与 JSON 同时保存）';
     pickBtn.textContent = '更换文件夹…';
   }catch(e){ /* 用户取消选择，保持原状 */ }
 });
@@ -1114,8 +1135,17 @@ async function writeToFolder(url, name){
 
 // 保存产物。默认勾选 = 脱敏 docx + mapping.json 两个都存
 async function saveOutputs(j){
+  lastExport = j;
+  if(window.CONTRACT_DESKTOP){
+    try{
+      var response = await fetch('/api/native/save/__SID__', {method:'POST'});
+      var result = await response.json();
+      if(!result.ok) throw new Error(result.error || '未能保存');
+      return result;
+    }catch(e){return {error:String(e.message||e), files:[]};}
+  }
   var jobs = [{url:j.output_url, name:j.output_name}];
-  if(document.getElementById('optJson').checked && j.mapping_url){
+  if(j.mapping_url){
     jobs.push({url:j.mapping_url, name:j.mapping_name || 'mapping.json'});
   }
 
@@ -1147,7 +1177,22 @@ async function saveOutputs(j){
   return {folder:'', files:out, degraded:false};
 }
 
+async function retryNativeSave(){
+  var button = document.getElementById('retrySave');
+  if(button) button.disabled = true;
+  var sv = await saveOutputs(lastExport);
+  document.getElementById('saveStatus').outerHTML = renderSaved(sv,lastExport);
+}
 function renderSaved(sv, j){
+  if(window.CONTRACT_DESKTOP){
+    var message = sv.cancelled ? '已取消保存，两个文件尚未保存到所选位置。' :
+      sv.error ? '保存失败：' + sv.error : '两个文件已保存到：' + sv.folder;
+    return '<div class="saved" id="saveStatus"><div class="ln">'+esc(message)+'</div>'+
+      (sv.files||[]).map(function(f){return '<div class="ln">'+esc(f.name)+'</div>';}).join('')+
+      '<div class="ln"><b>脱敏文件：复核后可外发或提供给 AI。JSON：含敏感原文，不可外发或提供给 AI。</b></div>'+
+      '<button type="button" class="btn sm" id="retrySave" onclick="retryNativeSave()">'+
+      (sv.cancelled || sv.error ? '重新保存两个文件' : '另存两个文件')+'</button></div>';
+  }
   var lines = sv.files.map(function(f){
     var kb = f.size ? '（' + Math.max(1, Math.round(f.size/1024)) + ' KB）' : '';
     return '<div class="ln">• <b>' + esc(f.name) + '</b>' + kb + '</div>';
@@ -1161,7 +1206,7 @@ function renderSaved(sv, j){
   }
   return '<div class="saved">' +
     '<div class="ln">' + head + '</div>' + lines +
-    (j.mapping_url ? '<div class="ln">内部可逆稿包含原文映射，请勿直接外发。</div>' : '<div class="ln">对外稿未附带还原映射；发送前仍须人工通读。</div>') +
+    '<div class="ln"><b>脱敏文件：复核后可外发或提供给 AI。JSON：含敏感原文，不可外发或提供给 AI。</b></div>' +
     '</div>';
 }
 
@@ -1176,10 +1221,10 @@ document.getElementById('go').addEventListener('click',async function(){
     });
   });
   btn.disabled=true;
-  out.innerHTML='<div class="alert info"><span class="i">⏳</span><span>正在按所选用途生成脱敏文件…</span></div>';
+  out.innerHTML='<div class="alert info"><span class="i">⏳</span><span>正在生成脱敏文件和还原 JSON…</span></div>';
   try{
     // 与上传时的识别参数保持一致：否则服务端重扫得到的偏移会与这里的位置白名单对不上
-    var sel={export_mode:exportMode.value,enabled_types:Array.from(enabled),
+    var sel={enabled_types:Array.from(enabled),
              min_confidence:(DATA.min_confidence||0.5),
              min_severity:(DATA.min_severity||'low'),
              items:enabledItems};
@@ -1190,10 +1235,10 @@ document.getElementById('go').addEventListener('click',async function(){
       var sv=await saveOutputs(j);
       out.innerHTML='<div class="alert ok"><span class="i">✓</span><span>脱敏完成：替换 '+j.applied+' 处，跳过 '+j.skipped+' 处。'+
         renderSaved(sv,j)+
-        '<div style="margin-top:9px">'+
+        (window.CONTRACT_DESKTOP ? '' : '<div style="margin-top:9px">'+
           '<a class="btn ok sm" href="'+j.output_url+'" download>另存 '+esc(j.output_name)+'</a>'+
           (j.mapping_url?('<a class="btn sm" style="margin-left:8px" href="'+j.mapping_url+'" download>另存 '+esc(j.mapping_name||'mapping.json')+'</a>'):'')+
-        '</div>'+
+        '</div>')+
         (j.warnings?('<div class="stat" style="margin-top:8px">'+esc(j.warnings)+'</div>'):'')+
         '</span></div>';
     }else{

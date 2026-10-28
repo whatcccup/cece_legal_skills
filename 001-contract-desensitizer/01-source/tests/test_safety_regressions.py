@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import tempfile, unittest, zipfile, sys
+import tempfile, unittest, zipfile, sys, json
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from docx import Document
@@ -23,14 +23,14 @@ class Safety(unittest.TestCase):
   r=R.redact_file(str(src),types=['PHONE_MOBILE'],out_path=str(self.root/'out.docx'),export_mode='external');self.assertEqual(r['applied'],4)
   with zipfile.ZipFile(r['output']) as z:
    self.assertFalse(any(b'13800138000' in z.read(n) for n in z.namelist()));self.assertNotIn('customXml/mapping.json',z.namelist())
-  self.assertIsNone(r['mapping']);self.assertIsNone(r['log'])
+  self.assertTrue(Path(r['mapping']).is_file());self.assertFalse(r['mapping_embedded']);self.assertIsNone(r['log'])
  def test_repeated_rules_and_redaction(self):
   rules=self.root/'rules.md';rules.write_text('| 28 | REVIEW_CODE_28 | 商业信息 | 中 | 工号 | 隐藏 | keep_head=2; keep_tail=3 | 是 | ZQC[0-9]{8} |\n');src=self.root/'in.txt';src.write_text('员工工号：ZQC58374926')
   for i in range(2):
    specs=D.load_rules_md(str(rules));self.assertEqual(len(specs),1);cs=D.DetectorEngine(D.Settings(extra_specs=specs)).scan_document(D.load_document(str(src)));self.assertTrue(any(c.type_id=='REVIEW_CODE_28' for c in cs));self.assertEqual(next(c.masked for c in cs if c.type_id=='REVIEW_CODE_28'),'ZQ******926');r=R.redact_file(str(src),types=['REVIEW_CODE_28'],rules_path=str(rules),out_path=str(self.root/f'out{i}.txt'));self.assertEqual(r['applied'],1)
  def test_external_removes_mapping_and_blocks_embeddings(self):
   d=Document();d.add_paragraph('电话：13800138000');src=self.root/'in.docx';d.save(src)
-  r=R.redact_file(str(src),types=['PHONE_MOBILE'],out_path=str(self.root/'internal.docx'),restore_mode=True);out=R.redact_file(r['output'],types=['PHONE_MOBILE'],out_path=str(self.root/'external.docx'),export_mode='external')
+  r=R.redact_file(str(src),types=['PHONE_MOBILE'],out_path=str(self.root/'internal.docx'),restore_mode=True);R.embed_mapping_in_docx(r['output'],json.loads(Path(r['mapping']).read_text()));out=R.redact_file(r['output'],types=['PHONE_MOBILE'],out_path=str(self.root/'external.docx'),export_mode='external')
   with zipfile.ZipFile(out['output']) as z:self.assertFalse(any('mapping.json' in n for n in z.namelist()))
   with zipfile.ZipFile(src,'a') as z:z.writestr('word/embeddings/test.bin',b'synthetic')
   with self.assertRaisesRegex(RuntimeError,'嵌入|检查'):R.redact_file(str(src),types=['PHONE_MOBILE'],out_path=str(self.root/'blocked.docx'),export_mode='external')

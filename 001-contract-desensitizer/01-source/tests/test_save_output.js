@@ -6,7 +6,7 @@
  * 在 Node 的沙箱里跑，断言：
  *   A. 未选文件夹（默认）→ 自动下载 docx + mapping.json 两个文件
  *   B. 已选文件夹 → 两个文件直接写进该文件夹，且不再触发浏览器下载
- *   C. 取消勾选 mapping → 只保存 docx 一个
+ *   C. 还原 JSON 必须与脱敏文件同时保存
  *   D. 写文件夹失败 → 自动退化为浏览器下载，不能丢文件
  *
  * 用法：node tests/test_save_output.js
@@ -59,7 +59,7 @@ function makeEnv(opts) {
     esc: (s) => String(s == null ? "" : s),
     fetch: async (url) => {
       if (opts.fetchFails && opts.fetchFails.indexOf(url) >= 0) return { ok: false, status: 500 };
-      return { ok: true, status: 200, blob: async () => ({ size: 1234, _url: url }) };
+      return { ok: true, status: 200, blob: async () => ({ size: 1234, _url: url }), json: async () => opts.nativeResult };
     },
     document: {
       getElementById: (id) => (els[id] = els[id] || mkEl(id)),
@@ -78,6 +78,7 @@ function makeEnv(opts) {
     if (opts.pickerCancels) throw new Error("AbortError");
     return mkDirHandle(opts, written);
   };
+  sandbox.window.CONTRACT_DESKTOP = !!opts.desktop;
   ctx.sandbox = sandbox;
   ctx.els = els;
   ctx.mkDirHandle = mkDirHandle;
@@ -141,12 +142,12 @@ async function main() {
     check("结果里带文件夹名", sv.folder === "C01", sv.folder);
   }
 
-  console.log("\n== C. 取消勾选 mapping → 只保存 docx ==");
+  console.log("\n== C. 两个文件必须同时保存 ==");
   {
     const c = await loadEnv({ jsonChecked: false });
     await c.sandbox.saveOutputs(RESULT);
     const names = c.downloads.map((d) => d.name || decodeURIComponent(String(d.url).split("/").pop()));
-    check("只下载 1 个文件", c.downloads.length === 1, names.join(" / "));
+    check("即使旧界面取消勾选也保存两个文件", c.downloads.length === 2, names.join(" / "));
     check("下载的是 docx", names[0].endsWith(".docx") && !names[0].endsWith(".json"), names[0]);
   }
 
@@ -177,6 +178,19 @@ async function main() {
     await pick.f({});
     await c.sandbox.saveOutputs(RESULT);
     check("取消选择后仍下载 2 个文件", c.downloads.length === 2, `实际 ${c.downloads.length}`);
+  }
+
+  console.log("\n== G. 桌面保存：成功、取消和失败都不触发浏览器下载 ==");
+  for (const result of [
+    {ok:true, folder:'/original', files:[{name:'doc.docx'}, {name:'doc.docx.mapping.json'}]},
+    {ok:true, cancelled:true},
+    {ok:false, error:'目录不可写'},
+  ]) {
+    const c = await loadEnv({desktop:true, nativeResult:result});
+    const saved = await c.sandbox.saveOutputs(RESULT);
+    check('桌面模式不转为浏览器下载', c.downloads.length === 0);
+    check('准确返回保存状态', result.cancelled ? saved.cancelled === true :
+      result.ok ? saved.folder === '/original' && saved.files.length === 2 : saved.error === result.error);
   }
 
   console.log();

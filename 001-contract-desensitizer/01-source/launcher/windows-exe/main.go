@@ -41,7 +41,7 @@ func main() {
   }
   cmd := exec.Command(runtime, args...)
   cmd.Dir = root
-  cmd.Env = append(os.Environ(), "CONTRACT_REDACTOR_RULES="+filepath.Join(cache, "ContractRedactor", "Rules", "脱敏规则清单.md"))
+  cmd.Env = append(os.Environ(), "CONTRACT_REDACTOR_DESKTOP=1", "CONTRACT_REDACTOR_RULES="+filepath.Join(cache, "ContractRedactor", "Rules", "脱敏规则清单.md"))
   cmd.Stdout, cmd.Stderr = log, log
   cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
   if err := cmd.Run(); err != nil {

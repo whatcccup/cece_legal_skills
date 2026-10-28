@@ -13,12 +13,27 @@
 
 ## 怎么使用
 
-1. 上传一份合同副本。支持 Word、文字型 PDF、TXT 和 Markdown；扫描图片暂不支持，需要先 OCR。
+1. 点击“选择合同”，在系统文件窗口选择一份合同副本。支持 Word、文字型 PDF、TXT 和 Markdown；扫描图片暂不支持，需要先 OCR。
 2. 在左右对照中逐项复核。想保留某条信息，取消勾选即可。
-3. 发给别人，选择默认“对外脱敏稿”；仅供内部还原时，选择 Word“内部可逆稿”。
-4. 导出后再检查一遍，确认无遗漏。退出请点网页右上角“退出”，只关标签页不会停止服务。
+3. 点击“确认并执行脱敏”，会弹出系统“另存为”窗口，默认打开原合同所在文件夹。选好位置并保存后，**脱敏文件和还原 JSON 会一起保存**，不用再下载第二次。
+4. 只发送脱敏文件。发送前重新打开检查，确认没有遗漏；**不要把 JSON 发给别人或 AI**。
 
-**内部可逆稿仍含原文映射，不要当成对外稿发送。**自动识别可能漏检，不能代替人工通读。
+例如选择 `合同.docx`，会得到：
+
+| 文件 | 用途 | 能外发吗 |
+| --- | --- | --- |
+| `合同_脱敏.docx` | 姓名、电话等选中内容被替换为占位符，文件内不保存原文映射 | 人工复核后，可以发给别人或 AI |
+| `合同_脱敏.docx.mapping.json` | 保存占位符和敏感原文的对应关系，供自己还原 | **不可以**，含敏感原文，请单独保管 |
+
+没有另一种“可逆 Word”，也不需要选择导出用途。两个文件会同时保存，但请勿将整个文件夹或两个文件一起发给 AI。
+
+如需还原，在工具中切换“还原”，选择脱敏 Word。对应 JSON 在同一文件夹、文件名未改时会自动找到；否则按提示选择 JSON。丢失 JSON 就无法自动还原。PDF、TXT 与 Markdown 也会保存配套 JSON，但目前只有 Word 支持自动还原。
+
+取消保存后不会写入所选位置，可以点击“重新保存两个文件”。已有同名文件或 JSON 时不会覆盖，请换一个新文件名。不要将脱敏文件保存为原合同的名字。
+
+桌面 App 支持以上系统窗口。仅用源码在浏览器运行时，请手动选择保存文件夹；浏览器上传不会提供原文件的完整路径。
+
+退出请点网页右上角“退出”，只关标签页不会停止服务。自动识别可能漏检，图片、未勾选的内容和上下文线索也需要人工检查。
 
 ## 想改规则怎么办
 
@@ -35,8 +50,8 @@
 
 ## 本版已知限制
 
-v1.3.0：Apple 芯片原生、Intel/Rosetta 的启动和虚构合同导出测试已通过；Intel 物理机、旧版 macOS、Windows 实机安装和卸载仍待验证。Windows 程序尚未代码签名，Mac 仅临时签名、未公证。
+v1.4.0：Apple 芯片原生、Intel/Rosetta 的启动和虚构合同导出测试已通过；Intel 物理机、旧版 macOS、Windows 实机安装和卸载仍待验证。Windows 程序尚未代码签名，Mac 仅临时签名、未公证。
 
 ## 开源与开发者
 
-MIT 许可。源码 ZIP 统一放在 [GitHub Releases](https://github.com/whatcccup/cece_legal_skills/releases)；官网和 SkillHub 面向普通用户提供安装软件入口。开发与构建入口见 `001-contract-desensitizer/01-source/launcher/mac-bundled/README.md`、`001-contract-desensitizer/01-source/launcher/windows-installer/README.md`，回归测试在 `tests/`。
+MIT 许可。源码 ZIP 统一放在 [GitHub Releases](https://github.com/whatcccup/cece_legal_skills/releases)；官网和 SkillHub 面向普通用户提供安装软件入口。开发与构建入口见 `001-contract-desensitizer/01-source/launcher/mac-bundled/README.md`、`001-contract-desensitizer/01-source/launcher/windows-installer/README.md`，回归测试在 `001-contract-desensitizer/01-source/tests/`。

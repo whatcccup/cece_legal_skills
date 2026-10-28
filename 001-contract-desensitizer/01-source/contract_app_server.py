@@ -32,6 +32,7 @@ import secrets
 import socket
 import urllib.parse
 import shutil
+import native_files
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, List, Optional, Tuple
@@ -58,7 +59,7 @@ from contract_redactor import (
 
 
 APP_NAME = "contract_app_server"
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.4.0"
 DEFAULT_PORT = 18800
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
 
@@ -189,6 +190,7 @@ class AppHandler(BaseHTTPRequestHandler):
  const request=new Request(input,init);const headers=new Headers(request.headers);
  headers.set('X-Contract-Token',document.querySelector('meta[name="csrf-token"]').content);
  return original(new Request(request,{headers:headers}));};})();</script>""".replace('__TOKEN__', self.state.token)
+        script += "<script>window.CONTRACT_DESKTOP=" + ("true" if native_files.available() else "false") + ";</script>"
         body = body.replace(b'</head>', script.encode('utf-8')+b'</head>')
         self._send(code, "text/html; charset=utf-8", body)
 
@@ -313,6 +315,23 @@ class AppHandler(BaseHTTPRequestHandler):
             if len(body_bytes) != clen:
                 self._send_json({"ok": False, "error": "上传不完整"}, 400); return
 
+        if path.startswith("/api/native/") and not native_files.available():
+            self._send_json({"ok": False, "error": "请从桌面 App 启动以使用系统文件窗口"}, 400)
+            return
+        match = re.fullmatch(r"/api/native/save/([A-Za-z0-9_-]+)", path)
+        if match:
+            info = self.state.get(match.group(1))
+            if not info:
+                self._send_json({"ok": False, "error": "session not found"}, 404)
+                return
+            try:
+                self._send_json(native_files.save_pair(info["outputs"], info.get("original_path")))
+            except FileExistsError:
+                self._send_json({"ok": False, "error": "该文件名或配套 JSON 已存在，未覆盖任何文件。请用新文件名重新保存。"}, 409)
+            except Exception as exc:
+                self._send_json({"ok": False, "error": "尚未保存，请重试：" + str(exc)}, 500)
+            return
+
         if path == "/api/rules/open":
             try:
                 rules = self.state.rules_path
@@ -395,11 +414,25 @@ class AppHandler(BaseHTTPRequestHandler):
                 os._exit(0)
             return
 
-        if path == "/api/upload":
+        if path in ("/api/upload", "/api/native/open"):
             try:
-                mp = parse_multipart()
-                fld = mp.get("file")
-                mode = (mp.get("mode", {}).get("data") or b"redact").decode("utf-8").strip().lower()
+                original_path = None
+                if path == "/api/native/open":
+                    req = json.loads(body_bytes.decode("utf-8") or "{}")
+                    mode = req.get("mode", "redact")
+                    original_path = native_files.choose_contract()
+                    if not original_path:
+                        self._send_json({"ok": True, "cancelled": True})
+                        return
+                    if _ext_of(original_path) not in (".docx", ".pdf", ".txt", ".md"):
+                        raise ValueError("请选择 Word、PDF、TXT 或 Markdown 文件")
+                    with open(original_path, "rb") as source:
+                        data = source.read(MAX_UPLOAD_BYTES + 1)
+                    fld = {"filename": os.path.basename(original_path), "data": data}
+                else:
+                    mp = parse_multipart()
+                    fld = mp.get("file")
+                    mode = (mp.get("mode", {}).get("data") or b"redact").decode("utf-8").strip().lower()
                 if mode not in ("redact", "restore"):
                     mode = "redact"
                 if not fld or not fld.get("data"):
@@ -426,6 +459,14 @@ class AppHandler(BaseHTTPRequestHandler):
                     self._send_json({"ok": False, "error": f"暂不支持 {ext} 文件"}, 400)
                     return
 
+                # Native selection grants access to this file's exact sibling JSON only.
+                if original_path and mode == "restore":
+                    sibling = original_path + ".mapping.json"
+                    if os.path.isfile(sibling):
+                        if os.path.getsize(sibling) > 8*1024*1024:
+                            raise ValueError("还原 JSON 超过 8 MB，请检查文件")
+                        shutil.copyfile(sibling, input_path + ".mapping.json")
+
                 # 检测文件是否已含占位符
                 is_redacted = _looks_like_redacted(input_path)
 
@@ -445,6 +486,7 @@ class AppHandler(BaseHTTPRequestHandler):
                         "sid": sid,
                         "filename": safe_name,
                         "input_path": input_path,
+                        "original_path": original_path,
                         "mode": "restore",
                         "is_redacted": is_redacted,
                         "sibling_mapping": sib_mapping,
@@ -483,6 +525,7 @@ class AppHandler(BaseHTTPRequestHandler):
                     "sid": sid,
                     "filename": safe_name,
                     "input_path": input_path,
+                    "original_path": original_path,
                     "mode": "redact",
                     "report": report,
                     "doc": doc,
@@ -523,17 +566,13 @@ class AppHandler(BaseHTTPRequestHandler):
                 return
             input_path = info["input_path"]
             ext = _ext_of(input_path)
-            export_mode = req.get("export_mode", "external")
-            if export_mode not in ("external", "reversible"):
-                self._send_json({"ok": False, "error": "请选择导出模式"}, 400); return
-            if export_mode == "reversible" and ext != ".docx":
-                self._send_json({"ok": False, "error": "自动还原仅支持 Word，请选择对外稿"}, 400); return
+            export_mode = "external"  # Legacy requests also keep original mappings out of documents.
 
             # 决定输出目录 / 路径
             out_dir = os.path.join(self.state.work_dir, sid, "out")
             os.makedirs(out_dir, exist_ok=True)
             stem = os.path.splitext(os.path.basename(input_path))[0]
-            label = "对外脱敏" if export_mode == "external" else "内部可逆"
+            label = "脱敏"
             output_name = f"{stem}_{label}{ext or '.txt'}"
             out_path = os.path.join(out_dir, output_name)
 
@@ -549,10 +588,9 @@ class AppHandler(BaseHTTPRequestHandler):
             if not isinstance(enabled_items, list):
                 enabled_items = None
 
-            warnings = "对外稿不含还原映射；仍须人工检查图片、未选项目及上下文。" if export_mode == "external" else "内部可逆稿包含原文映射，请勿直接外发。"
+            warnings = "脱敏文件不含还原映射，可外发或提供给 AI；请先人工复核。JSON 含敏感原文，不可外发或提供给 AI。"
             try:
-                # 注：含占位符的文件 = 已被脱敏过，二次脱敏会再次写出 placeholder
-                # 避免重叠加：在该文件下不再生成新的 mapping（直接复用上一次）
+                # 已脱敏文件可能无法识别出原文，仅提醒用户，不把旧映射嵌回文档。
                 if info.get("looks_redacted") and ext == ".docx":
                     warnings = "⚠ 文件疑似已经过脱敏，将再次覆盖 placeholder。"
                 r = redact_file(
@@ -569,13 +607,15 @@ class AppHandler(BaseHTTPRequestHandler):
                 return
 
             mapping_dst = r.get("mapping")
+            info["mapping_path"] = mapping_dst
+            info["sibling_mapping"] = mapping_dst
+            info["outputs"] = {"document": out_path, "mapping": mapping_dst}
 
             # 复制 log
             log_dst = None
             if r.get("log") and os.path.exists(r["log"]):
                 log_dst = os.path.join(out_dir, output_name + ".redaction.log")
                 try:
-                    import shutil
                     shutil.copyfile(r["log"], log_dst)
                 except Exception:
                     log_dst = None

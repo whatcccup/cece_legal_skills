@@ -16,10 +16,10 @@ InstallDirRegKey HKCU "Software\ContractRedactor" "InstallDir"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
 SetCompressorDictSize 32
-VIProductVersion "1.3.0.0"
+VIProductVersion "1.4.0.0"
 VIAddVersionKey /LANG=2052 "ProductName" "合同脱敏工具"
 VIAddVersionKey /LANG=2052 "FileDescription" "合同脱敏工具安装程序"
-VIAddVersionKey /LANG=2052 "FileVersion" "1.3.0.0"
+VIAddVersionKey /LANG=2052 "FileVersion" "1.4.0.0"
 VIAddVersionKey /LANG=2052 "LegalCopyright" "LegalTech CC · MIT"
 !define MUI_ABORTWARNING
 !define MUI_FINISHPAGE_RUN "$INSTDIR\ContractRedactor.exe"
@@ -72,7 +72,7 @@ Section "Install"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "Software\ContractRedactor" "InstallDir" "$INSTDIR"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ContractRedactor" "DisplayName" "合同脱敏工具"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ContractRedactor" "DisplayVersion" "1.3.0"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ContractRedactor" "DisplayVersion" "1.4.0"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ContractRedactor" "Publisher" "LegalTech CC"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ContractRedactor" "UninstallString" '$\"$INSTDIR\Uninstall.exe$\"'
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ContractRedactor" "NoModify" 1

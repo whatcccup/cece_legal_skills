@@ -36,7 +36,7 @@ func main() {
   } else { args=append(args,os.Args[1:]...) }
   cmd:=exec.Command(filepath.Join(resources,"python","bin","python3.13"),args...)
   cmd.Dir=base
-  cmd.Env=append(os.Environ(),"CONTRACT_REDACTOR_RULES="+filepath.Join(base,"Rules","脱敏规则清单.md"))
+  cmd.Env=append(os.Environ(), "CONTRACT_REDACTOR_DESKTOP=1","CONTRACT_REDACTOR_RULES="+filepath.Join(base,"Rules","脱敏规则清单.md"))
   cmd.Stdout,cmd.Stderr=log,log
   if err:=cmd.Run();err!=nil {
     if len(os.Args)>1 && os.Args[1]=="--self-test" { fmt.Fprintln(os.Stderr,err,"log:",logPath) } else { showError("无法启动，请查看日志："+logPath+"。端口可能已占用；请先从原工具网页退出，不会结束其他程序。") }
