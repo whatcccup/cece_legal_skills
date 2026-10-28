@@ -18,7 +18,7 @@ macOS 若提示无法验证开发者，请先尝试打开，再到“系统设�
 
 支持 Word、文字型 PDF、TXT、Markdown，识别结果需人工复核。默认导出“对外脱敏稿”，不附带原文映射；“内部可逆稿”仅用于 Word，内嵌原文映射，应按原合同等级保管，不能直接对外发送。扫描件需要先 OCR。
 
-官网 ZIP 附带同版本源码与测试；官网同名 JSON 记录源码提交及 SHA-256。唯一源码入口为 `001-contract-desensitizer/01-source`。`03-skillhub` 是此前的上架形态，本次没有发布 SkillHub，不能将其视为 v1.2.1。
+官网 ZIP 附带同版本源码与测试；官网同名 JSON 记录源码提交及 SHA-256。唯一源码入口为 `001-contract-desensitizer/01-source`。SkillHub v1.2.1 已上线，核心代码、依赖与规则已与官网逐文件核对。[查看与安装](https://skillhub.cn/skills/user_dd9a2596/contract-desensitizer-offline)。
 
 公众号兼容入口：[contract_desentizier](contract_desentizier/README.md)、[contract_desensitizer](contract_desensitizer/README.md)；旧仓库链接继续保留导航用途。
 

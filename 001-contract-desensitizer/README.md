@@ -10,7 +10,7 @@
 
 推荐从[官网](https://legaltechcc.com/workflows/contract-desensitizer/#install)下载 v1.2.1 Mac 或 Windows 包，完整解压后按外层 README 启动。工具运行不需要 AI。
 
-请 AI Agent 帮助安装时，使用[开始使用.md](01-source/开始使用.md)中的提示。源码安装命令、系统安全提示、端口排错和测试见[完整 README](01-source/README.md)。SkillHub 上架版尚未同步本次修复。
+请 AI Agent 帮助安装时，使用[开始使用.md](01-source/开始使用.md)中的提示。源码安装命令、系统安全提示、端口排错和测试见[完整 README](01-source/README.md)。[SkillHub v1.2.1](https://skillhub.cn/skills/user_dd9a2596/contract-desensitizer-offline)已同步本次修复。
 
 ## 3. 能力边界
 
@@ -45,4 +45,4 @@
 ## 6. 许可与来源
 
 MIT © 2026 whatcccup ｜ 源码：<https://github.com/whatcccup/cece_legal_skills>
-｜ SkillHub：<https://skillhub.cn/skills/user_47430f88/contract-desensitizer-offline>
+｜ SkillHub：<https://skillhub.cn/skills/user_dd9a2596/contract-desensitizer-offline>
