@@ -2,7 +2,7 @@
 name: contract-desensitizer-offline
 slug: contract-desensitizer-offline
 displayName: 合同脱敏工具（离线软件）
-version: "1.3.0"
+version: "1.3.1"
 summary: Windows、Mac Apple及Intel安装软件，自带运行环境；本机合同脱敏，无需安装Python或调用AI。
 description: 当用户需要下载和使用离线合同脱敏工具，或修改脱敏规则时使用。按系统提供安装软件链接，不在技能包内运行合同处理脚本，不要求安装Python。支持Word、文字型PDF和文本，扫描件需先OCR。
 license: MIT
@@ -13,11 +13,13 @@ homepage: https://legaltechcc.com/workflows/contract-desensitizer/
 
 本技能提供安装软件入口，不附带另一套Python源码。用户安装后自行在本机处理合同，不需要AI客户端、模型账号或API Key。
 
+下载指引 v1.3.1；对应软件仍为 v1.3.0，本次只将下载入口改到官网。
+
 ## 按电脑选择下载
 
-- [Windows 安装程序](https://github.com/whatcccup/cece_legal_skills/releases/download/v1.3.0/ContractRedactor-Setup-1.3.0.exe)：安装后从桌面图标打开。
-- [Mac Apple 芯片版](https://github.com/whatcccup/cece_legal_skills/releases/download/v1.3.0/contract-desensitizer-mac-arm64-1.3.0.zip)：完整解压，拖到“应用程序”，打开App。
-- [Mac Intel 芯片版](https://github.com/whatcccup/cece_legal_skills/releases/download/v1.3.0/contract-desensitizer-mac-x86_64-1.3.0.zip)：同上。
+- [Windows 安装程序](https://legaltechcc.com/assets/downloads/ContractRedactor-Setup-1.3.0.exe)：安装后从桌面图标打开。
+- [Mac Apple 芯片版](https://legaltechcc.com/assets/downloads/contract-desensitizer-mac-arm64-1.3.0.zip)：完整解压，拖到“应用程序”，打开App。
+- [Mac Intel 芯片版](https://legaltechcc.com/assets/downloads/contract-desensitizer-mac-x86_64-1.3.0.zip)：同上。
 
 [官网安装、使用、QA与原理](https://legaltechcc.com/workflows/contract-desensitizer/)
 
