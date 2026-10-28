@@ -74,7 +74,7 @@ from contract_sensitive_detector import (
 
 # --------------------------------------------------------------------- 常量 --
 
-__version__ = "1.2.1"
+__version__ = "1.3.0"
 ENGINE_NAME = "contract_redactor"
 
 

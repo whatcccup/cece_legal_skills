@@ -15,7 +15,7 @@ from typing import Any, Dict
 
 APP_TITLE = "合同脱敏 / 还原"
 APP_SUBTITLE = "Contract Redactor"
-APP_VERSION = "1.2.1"
+APP_VERSION = "1.3.0"
 
 esc = _html.escape
 
@@ -425,6 +425,7 @@ __CSS__
   </div>
 </header>
 <main class="shell">
+<div style="margin-bottom:14px"><button class="btn sm ghost" onclick="openRulesFile()">打开规则文件</button> <span style="font-size:12px">保存修改后，请重新上传合同识别。</span><div id="rules-file-status" role="status" style="font-size:12px;overflow-wrap:anywhere;margin-top:6px"></div></div><details style="margin-top:8px;font-size:13px"><summary>规则怎么改？交给 AI Agent 帮你改</summary><ol><li>点击“打开规则文件”，先另存一份备份。</li><li>复制文件的全部内容，发给你使用的 AI Agent，并用日常语言说明想改什么。只发送规则和虚构示例，不发送真实合同、客户信息或原文映射。</li><li>让 AI Agent 返回修改后的完整规则文件。复制它返回的完整内容，替换原文件内容并保存；不要把解释文字一起复制进去。</li><li>回到工具重新上传虚构测试文件，核对识别和导出是否符合要求。原先打开的识别结果不会自动更新；有问题就恢复备份。</li></ol><p>可以直接复制这段提示词：</p><blockquote style="margin:8px 0;padding:12px;border-left:3px solid var(--accent);overflow-wrap:anywhere">我想修改合同脱敏规则。请只按我的要求修改下面的规则清单，保留其他规则、表格结构和程序需要的字段，不修改程序代码。请返回可以直接复制回原文件的完整 Markdown 内容，不要省略未修改的部分，不要用代码围栏包裹全文；最后单独说明改动和用虚构信息测试的方法。我的修改要求是：【在这里填写】。以下是当前规则文件的全部内容：【在这里粘贴】。</blockquote><p>AI Agent 只在你需要修改规则时帮忙；安装和日常脱敏不需要 AI Agent。</p></details>
 __BODY__
 </main>
 <footer class="foot">
@@ -433,6 +434,14 @@ __BODY__
   <span>合同脱敏 / 还原 <b>v__VERSION__</b></span>
 </footer>
 <script>
+async function openRulesFile(){
+  const status=document.getElementById('rules-file-status');
+  try{
+    const response=await fetch('/api/rules/open',{method:'POST'});
+    const data=await response.json();
+    status.textContent=(data.ok?'已请求系统编辑器打开：':(data.error||'无法打开规则文件')+' ') + (data.path||'');
+  }catch(error){status.textContent='打开失败，请确认本地服务仍在运行。';}
+}
 async function quitApp(){
   if(!confirm('退出后本地服务会停止，需要重新双击应用才能再次使用。确定退出？')) return;
   try{ await fetch('/api/shutdown',{method:'POST'}); }catch(e){}

@@ -58,7 +58,7 @@ from contract_redactor import (
 
 
 APP_NAME = "contract_app_server"
-APP_VERSION = "1.2.1"
+APP_VERSION = "1.3.0"
 DEFAULT_PORT = 18800
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
 
@@ -85,6 +85,7 @@ class AppState:
     def __init__(self, work_dir: str):
         os.makedirs(work_dir, exist_ok=True)
         self.work_dir = work_dir
+        self.rules_path = D.default_rules_path()
         self.token = secrets.token_urlsafe(32)
         self.processing = threading.BoundedSemaphore(2)
         self.uploads: Dict[str, Dict[str, Any]] = {}
@@ -311,6 +312,26 @@ class AppHandler(BaseHTTPRequestHandler):
                 self._send_json({"ok": False, "error": "上传超时"}, 408); self.close_connection=True; return
             if len(body_bytes) != clen:
                 self._send_json({"ok": False, "error": "上传不完整"}, 400); return
+
+        if path == "/api/rules/open":
+            try:
+                rules = self.state.rules_path
+                if sys.platform == "win32":
+                    try:
+                        os.startfile(rules)
+                    except OSError:
+                        import subprocess
+                        editor = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "notepad.exe")
+                        subprocess.Popen([editor, rules])
+                else:
+                    import subprocess
+                    command = ["open", "-t", rules] if sys.platform == "darwin" else ["xdg-open", rules]
+                    subprocess.Popen(command)
+                self._send_json({"ok": True, "path": rules})
+            except OSError as exc:
+                self._send_json({"ok": False, "path": self.state.rules_path,
+                                 "error": "无法打开编辑器，请在此位置手动编辑：" + str(exc)}, 500)
+            return
 
         # 解析 multipart
         def parse_multipart():

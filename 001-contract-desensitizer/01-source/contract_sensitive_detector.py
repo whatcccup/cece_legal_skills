@@ -62,7 +62,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
-__version__ = "1.2.1"
+__version__ = "1.3.0"
 ENGINE_NAME = "offline-rule-detector"
 
 # ==============================================================================
@@ -320,10 +320,28 @@ RULES_LOCK = threading.RLock()
 DEFAULT_TYPE_META = dict(TYPE_META)
 
 
+def default_rules_path():
+    """Keep an installed user's editable rules outside the application directory."""
+    bundled = os.path.join(os.path.dirname(os.path.abspath(__file__)), "脱敏规则清单.md")
+    custom = os.environ.get("CONTRACT_REDACTOR_RULES")
+    if not custom:
+        return bundled
+    custom = os.path.abspath(custom)
+    os.makedirs(os.path.dirname(custom), exist_ok=True)
+    try:
+        with open(bundled, "rb") as source:
+            contents = source.read()
+        with open(custom, "xb") as target:
+            target.write(contents)
+    except FileExistsError:
+        pass  # Preserve user changes across starts and upgrades.
+    return custom
+
+
 def load_settings(rules_path=None, **kwargs):
     TYPE_META.clear()
     TYPE_META.update(DEFAULT_TYPE_META)
-    path = rules_path or os.path.join(os.path.dirname(os.path.abspath(__file__)), "脱敏规则清单.md")
+    path = rules_path or default_rules_path()
     settings = Settings(**kwargs)
     settings.extra_specs = load_rules_md(path)
     return settings

@@ -1,100 +1,42 @@
-# cece_legal_skills
+# 合同脱敏工具
 
-合同脱敏工具 **v1.2.1**：提供 Mac 和 Windows ZIP 包；安装依赖后在本机离线运行，不需要 AI 客户端、模型账号或 API Key。
+把合同中的姓名、电话、账号等敏感信息找出来，逐项确认后，再导出脱敏文件。文件在自己电脑上处理，不需要上传给 AI，也不需要模型账号或 API Key。
 
-## 下载与安装
+## 下载安装
 
-- [官网介绍与安装说明](https://legaltechcc.com/workflows/contract-desensitizer/#install)
-- [下载 Mac 版](https://legaltechcc.com/assets/downloads/contract-desensitizer-mac-1.2.1.zip)
-- [下载 Windows 版](https://legaltechcc.com/assets/downloads/contract-desensitizer-windows-1.2.1.zip)
-- [源码、手动安装与测试](001-contract-desensitizer/01-source/README.md)
-- [给普通用户和 AI Agent 的安装说明](001-contract-desensitizer/01-source/开始使用.md)
+- **Windows**：下载 Windows 安装程序，双击安装，以后从桌面“合同脱敏工具”图标打开。
+- **Mac**：在“关于本机”查看芯片，选择 Apple 或 Intel 版本。下载、完整解压后，将 App 拖到“应用程序”，双击打开。
 
-先完整解压 ZIP，不要在压缩包内直接启动。Mac 双击外层“合同脱敏工具.app”。Windows 双击文件夹里的 `Start.vbs`；不要单独移动或删除 `Start.vbs`、`Start.bat` 和 `_support`，需要换位置时把整个文件夹一起移动。首次需要 Python 3.9+ 和联网安装依赖；Windows 启动器已静态检查，尚未完成实机验证。
+程序自带运行环境，不需要安装 Python，不影响电脑已有 Python，也不需要 AI Agent 帮忙安装。
 
-macOS 若提示无法验证开发者，请先尝试打开，再到“系统设置 → 隐私与安全性 → 安全性 → 仍要打开”确认。启动失败与端口占用的排查见[安装说明](001-contract-desensitizer/01-source/开始使用.md)。
+[官网下载与说明](https://legaltechcc.com/workflows/contract-desensitizer/) · [GitHub Releases 下载](https://github.com/whatcccup/cece_legal_skills/releases)
 
-## 使用与保密
+## 怎么使用
 
-支持 Word、文字型 PDF、TXT、Markdown，识别结果需人工复核。默认导出“对外脱敏稿”，不附带原文映射；“内部可逆稿”仅用于 Word，内嵌原文映射，应按原合同等级保管，不能直接对外发送。扫描件需要先 OCR。
+1. 上传一份合同副本。支持 Word、文字型 PDF、TXT 和 Markdown；扫描图片暂不支持，需要先 OCR。
+2. 在左右对照中逐项复核。想保留某条信息，取消勾选即可。
+3. 发给别人，选择默认“对外脱敏稿”；仅供内部还原时，选择 Word“内部可逆稿”。
+4. 导出后再检查一遍，确认无遗漏。退出请点网页右上角“退出”，只关标签页不会停止服务。
 
-官网 ZIP 附带同版本源码与测试；官网同名 JSON 记录源码提交及 SHA-256。唯一源码入口为 `001-contract-desensitizer/01-source`。SkillHub v1.2.1 已上线，核心代码、依赖与规则已与官网逐文件核对。[查看与安装](https://skillhub.cn/skills/user_dd9a2596/contract-desensitizer-offline)。
+**内部可逆稿仍含原文映射，不要当成对外稿发送。**自动识别可能漏检，不能代替人工通读。
 
-公众号兼容入口：[contract_desentizier](contract_desentizier/README.md)、[contract_desensitizer](contract_desensitizer/README.md)；旧仓库链接继续保留导航用途。
+## 想改规则怎么办
 
-## 仓库目录
+点击“打开规则文件”，先备份，再把文件全部内容和修改要求交给 AI Agent。请它返回完整规则，将结果复制回原文件保存，再重新上传虚构样例验证。软件里有可复制的提示词。不要发送真实合同、客户信息或原文映射。
 
-- `001-contract-desensitizer/01-source/`：源码、启动器、规则、安装说明和测试。
-- `001-contract-desensitizer/02-github/`：变更记录、发布清单。
-- `001-contract-desensitizer/03-skillhub/`：SkillHub 发布形态，需另行构建和上架。
-- `001-contract-desensitizer/90-build/`：构建脚本。
-- `templates/`：其他技能的文档模板。
+用户规则独立保存，升级不会覆盖修改；删除 App 或卸载不会删除合同记录，请按自己的保密要求管理。
 
-<details>
-<summary><b>维护者专区</b>（目录规范 / README 规范 / 发版流程 / 上架硬约束）—— 普通使用者不用展开</summary>
+## 常见问题
 
-### 目录规范
+- **Mac 打不开**：确认来源后先尝试打开，再到“系统设置 → 隐私与安全性”按系统提示处理。App 尚未获 Apple 公证；提示损坏或恶意软件时停止并反馈，不关闭系统防护。
+- **提示端口占用**：先看是否已有工具打开；需要换版时从旧工具网页退出。程序不会结束其他软件。
+- **需要安装 AI 吗**：不需要。AI Agent 只是修改规则或排错时的可选帮手。
+- **在哪里看日志**：Mac 在 `~/Library/Application Support/ContractRedactor/startup.log`；Windows 在 `%LOCALAPPDATA%\ContractRedactor\Data\startup.log`。不要公开含合同信息的日志。
 
-一个技能 = 一个编号文件夹。编号从 `001` 起，**只增不复用、不重排**；已发布的技能即使改名也保留原号。
+## 本版已知限制
 
-| 目录 | 性质 | 装什么 | 是否入库 |
-|---|---|---|---|
-| `01-source/` | 定稿·**唯一真源** | 完整可运行工程：源码、规则、启动器、截图、测试、完整教程 | ✅ |
-| `02-github/` | 定稿·发布物料 | `CHANGELOG.md`、`RELEASE-CHECKLIST.md` 等只在 GitHub 侧用的物料 | ✅ |
-| `03-skillhub/` | 定稿·发布形态 | `SKILL.md` + `scripts/` + `references/` + `tests/` | ✅ |
-| `90-build/` | 构建产物 | 构建 / 发布脚本 + 生成的 zip | 脚本 ✅，产物 ❌ |
-| `99-temp/` | 临时 | 运行会话、识别报告、脱敏稿、mapping、测试样本 | ❌（含敏感信息） |
+v1.3.0：Apple 芯片原生、Intel/Rosetta 的启动和虚构合同导出测试已通过；Intel 物理机、旧版 macOS、Windows 实机安装和卸载仍待验证。Windows 程序尚未代码签名，Mac 仅临时签名、未公证。
 
-**关联与边界**
+## 开源与开发者
 
-- 源码只有一个真源 `01-source/`；`03-skillhub/scripts/` 由 `build.sh` 同步，**禁止手改**，否则下次构建被覆盖。
-- 技能包里手写的只有两样：`SKILL.md`、`scripts/launcher/start.py`（`.bat`/`.vbs`/`.sh` 会被上架拦截，只能用 `.py`）。
-- GitHub 发布内容 = `README.md` + `01-source/` + `02-github/`；SkillHub 发布内容 = `03-skillhub/`。
-- `.gitignore` 里带斜杠的模式只匹配仓库根，多技能必须写 `**/90-build/*.zip`、`**/99-temp/*`。
-
-### SkillHub 上架硬约束（踩过坑）
-
-- 技能包里**不能出现** `.bat` / `.vbs` / `.sh` / `.exe`，否则报 `400 不允许的文件类型`。
-- `SKILL.md` frontmatter 必须有：`slug`（kebab-case，全网唯一）、`version`（三段 SemVer）、`displayName`。
-- 同一 skillId 可重复 publish 新版本号，`tags.latest` 会自动跟到新版，不需要先撤销旧版。
-- 推送 GitHub 若报 `CONNECT tunnel failed 502`，是本机代理挂了，绕开代理即可：
-  `env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy -u ALL_PROXY -u all_proxy git push origin HEAD`
-
-### README 规范
-
-每个技能必须有 `README.md`（技能卡片），六段，**顺序与小标题固定**，缺失写「待补」不要删：
-
-| 段 | 标题 | 写什么 |
-|---|---|---|
-| 1 | 一句话定位 | 用户角色 + 场景 + 结果，两行以内 |
-| 2 | 快速开始 | 推荐安装方式的一句话 Prompt（可直接复制）+ 一条手动命令 |
-| 3 | 能力边界 | 支持 / 不支持 / 已知限制 / 合规红线，用表格 |
-| 4 | 目录地图 | 本技能五个目录各装什么 |
-| 5 | 维护说明 | 改哪里、怎么自检、怎么发两个版本、什么是禁止操作 |
-| 6 | 许可与来源 | 许可、仓库地址、SkillHub 地址 |
-
-模板：[templates/skill-README.md](templates/skill-README.md)
-
-### 发版流程
-
-```bash
-# 1) 改代码：只动 01-source/
-# 2) 一键同步 + 自检 + 打包 + 预检
-bash 001-contract-desensitizer/90-build/build.sh
-
-# 3) 发 GitHub 版（本仓库即 GitHub 仓库）
-git add -A && git commit -m "..." && git push
-
-# 4) 发 SkillHub 版：先改 03-skillhub/SKILL.md 的 version（SemVer），再发布
-skillhub publish 001-contract-desensitizer/03-skillhub --changelog "..."
-```
-
-发版前按 `001-contract-desensitizer/02-github/RELEASE-CHECKLIST.md` 逐条打勾。
-
-</details>
-
----
-
-## 许可
-
-[MIT](LICENSE) © 2026 whatcccup
+MIT 许可。源码 ZIP 统一放在 [GitHub Releases](https://github.com/whatcccup/cece_legal_skills/releases)；官网和 SkillHub 面向普通用户提供安装软件入口。开发与构建入口见 `001-contract-desensitizer/01-source/launcher/mac-bundled/README.md`、`001-contract-desensitizer/01-source/launcher/windows-installer/README.md`，回归测试在 `tests/`。

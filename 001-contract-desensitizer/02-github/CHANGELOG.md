@@ -1,3 +1,9 @@
+# v1.3.0 · 2026-10-28
+
+Mac Apple/Intel App、Windows安装程序自带运行环境；规则独立保存并可从软件打开，提供AI Agent修改提示词；官网改为安装、使用、QA、原理四部分，源码ZIP仅在GitHub Release提供。
+
+已知限制：Windows实机安装/卸载、Intel物理机及旧macOS仍待验证；未做Developer ID公证或Windows代码签名。
+
 # 变更记录（contract-desensitizer）
 
 格式：日期 ｜ 版本 ｜ 变更 ｜ 影响面（源码 / 技能包 / 文档）
