@@ -1,1 +1,1 @@
-launcher/windows/*.bat text eol=crlf
+launcher/windows/*.bat -text whitespace=cr-at-eol
