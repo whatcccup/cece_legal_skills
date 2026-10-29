@@ -1,0 +1,69 @@
+name: Publish contract tool v1.4.1 assets
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Draft release ID to complete
+        required: true
+        type: string
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Verify official installers and publish the complete release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ inputs.release_id }}
+        run: |
+          python3 - <<'PYCODE'
+          import os,json,urllib.request,hashlib,time
+          from pathlib import Path
+          BASE='https://api.github.com/repos/whatcccup/cece_legal_skills'
+          TOKEN=os.environ['GH_TOKEN']
+          RELEASE_ID=int(os.environ['RELEASE_ID'])
+          FILES=[{'name': 'ContractRedactor-Setup-1.4.1.exe', 'bytes': 29143267, 'sha256': '38bf3600e779818640bf651ed8b1f1804b3d4d8ed862ca6ea6eb2ecee2ee2b7d'}, {'name': 'contract-desensitizer-mac-arm64-1.4.1.zip', 'bytes': 50852220, 'sha256': '3c8a8d1438e1493d1743ffba2e11ca0634625a2e22c6475a8d79b2e8dc980720'}, {'name': 'contract-desensitizer-mac-x86_64-1.4.1.zip', 'bytes': 51791692, 'sha256': 'd2208edeb504bf43d332d20e3e8a28ecc564fdd5854683466b3de69698e68227'}, {'name': 'contract-desensitizer-source-1.4.1.zip', 'bytes': 2215056, 'sha256': 'e6654ba263fc08147b5bb6e387f8a24a205e12b2ee4ba1d06d6af4d58d90fa82'}]
+
+          def api(path,method='GET',data=None,ctype='application/json'):
+              if data is not None and ctype=='application/json': data=json.dumps(data).encode()
+              req=urllib.request.Request(path if path.startswith('https://') else BASE+path,data=data,method=method,headers={'Authorization':'Bearer '+TOKEN,'User-Agent':'contract-redactor-release','Accept':'application/vnd.github+json','Content-Type':ctype})
+              with urllib.request.urlopen(req,timeout=180) as response:
+                  body=response.read()
+              return json.loads(body) if body else None
+
+          release=api('/releases/'+str(RELEASE_ID))
+          assert release['tag_name']=='v1.4.1'
+          existing={a['name']:a for a in api('/releases/'+str(RELEASE_ID)+'/assets')}
+          upload_url=release['upload_url'].split('{')[0]
+          for item in FILES:
+              a=existing.get(item['name'])
+              if a and a['state']=='uploaded':
+                  assert a['size']==item['bytes'] and a['digest']=='sha256:'+item['sha256']
+                  print('Already verified:',item['name'],flush=True);continue
+              if a:
+                  assert a['state']=='starter'
+                  api('/releases/assets/'+str(a['id']),'DELETE')
+              target=Path('/tmp')/item['name']
+              url='https://legaltechcc.com/assets/downloads/'+item['name']
+              digest=hashlib.sha256();count=0
+              with urllib.request.urlopen(url,timeout=180) as response,target.open('wb') as out:
+                  while True:
+                      chunk=response.read(1024*1024)
+                      if not chunk: break
+                      out.write(chunk);digest.update(chunk);count+=len(chunk)
+                      if count%(5*1024*1024)==0:print('Downloaded',item['name'],count,flush=True)
+              assert count==item['bytes'] and digest.hexdigest()==item['sha256']
+              a=api(upload_url+'?name='+item['name'],'POST',target.read_bytes(),'application/octet-stream')
+              assert a['state']=='uploaded' and a['digest']=='sha256:'+item['sha256']
+              print('Uploaded and verified:',item['name'],flush=True)
+          all_assets={a['name']:a for a in api('/releases/'+str(RELEASE_ID)+'/assets')}
+          assert set(all_assets)=={a['name'] for a in FILES}
+          for item in FILES:
+              a=all_assets[item['name']]
+              assert a['state']=='uploaded' and a['size']==item['bytes'] and a['digest']=='sha256:'+item['sha256']
+          result=api('/releases/'+str(RELEASE_ID),'PATCH',{'draft':False,'make_latest':'true'})
+          assert not result['draft']
+          print('Published:',result['html_url'],flush=True)
+          PYCODE
