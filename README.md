@@ -2,6 +2,17 @@
 
 把合同中的姓名、电话、账号等敏感信息找出来，逐项确认后，再导出脱敏文件。文件在自己电脑上处理，不需要上传给 AI，也不需要模型账号或 API Key。
 
+## 1.4.1：这次修复了什么
+
+- 姓名不再只靠“原告、被告、联系人”等标签。新增正文语境识别，例如“赵星辰向朱宁支付款项”；识别确认的同名信息继续匹配全文其他位置。复姓也参与判断。
+- 修复“6 000元”只替换“000元”、留下首位“6”的问题，完整识别带空格分组、千分位和多位小数的金额。
+- 修复“6,000.00元”“600000元”等金额被误当作示例号码跳过的问题。
+- 修复源码版 Windows BAT 启动文件行尾；普通用户继续使用 EXE 安装程序。
+
+更新前从旧工具网页点击“退出”。Windows 运行新版安装程序；Mac 用对应芯片的新 App 替换旧 App。用户规则和合同记录会保留。更新后重新选择原文件识别，旧复核页面不会自动更新。若此前停用了姓名或金额类型，请先启用。
+
+这次修复涉及程序内部判断，**只替换规则 MD 不能获得全部修复**。姓名仍是规则和语境识别，不保证覆盖所有罕见姓名、长姓名或外文姓名。发给他人或 AI 前，仍需人工检查姓名、金额及上下文。使用虚构样例测试，不要把真实合同交给 AI 排错。
+
 ## 下载安装
 
 - **Windows**：下载 Windows 安装程序，双击安装，以后从桌面“合同脱敏工具”图标打开。
@@ -50,8 +61,8 @@
 
 ## 本版已知限制
 
-v1.4.0：Apple 芯片原生、Intel/Rosetta 的启动和虚构合同导出测试已通过；Intel 物理机、旧版 macOS、Windows 实机安装和卸载仍待验证。Windows 程序尚未代码签名，Mac 仅临时签名、未公证。
+v1.4.1：Windows 的本版安装、更新和卸载，以及 Intel 物理机、旧版 macOS 仍须实机验收。Windows 程序尚未代码签名，Mac 仅临时签名、未公证。
 
 ## 开源与开发者
 
-MIT 许可。源码 ZIP 统一放在 [GitHub Releases](https://github.com/whatcccup/cece_legal_skills/releases)；官网和 SkillHub 面向普通用户提供安装软件入口。开发与构建入口见 `001-contract-desensitizer/01-source/launcher/mac-bundled/README.md`、`001-contract-desensitizer/01-source/launcher/windows-installer/README.md`，回归测试在 `001-contract-desensitizer/01-source/tests/`。
+MIT 许可。源码 ZIP 统一放在 [GitHub Releases](https://github.com/whatcccup/cece_legal_skills/releases)；官网和 SkillHub 面向普通用户提供安装软件入口。开发与构建入口见 `launcher/mac-bundled/README.md`、`launcher/windows-installer/README.md`，回归测试在 `tests/`。

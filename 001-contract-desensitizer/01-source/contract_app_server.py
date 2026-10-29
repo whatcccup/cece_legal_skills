@@ -59,7 +59,7 @@ from contract_redactor import (
 
 
 APP_NAME = "contract_app_server"
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.4.1"
 DEFAULT_PORT = 18800
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
 

@@ -62,7 +62,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
-__version__ = "1.4.0"
+__version__ = "1.4.1"
 ENGINE_NAME = "offline-rule-detector"
 
 # ==============================================================================
@@ -880,6 +880,7 @@ NAME_LABELS = (
     "受托人", "委托人", "代理人", "当事人", "开户名", "户名", "账户名", "收款人", "付款人",
     "借款人", "出借人", "保证人", "抵押人", "质权人", "员工", "劳动者", "乙方代表", "甲方代表",
     "项目负责人", "技术负责人", "项目经理", "设计师", "工程师", "顾问", "证人", "申请人",
+    "原告", "被告", "上诉人", "被上诉人", "被申请人", "第三人",
     # 角色类（表格行：角色 + 姓名）
     "产品负责人", "业务负责人", "商务负责人", "财务负责人", "内容负责人", "运营负责人",
     "客户负责人", "客户经理", "法务负责人", "法务合规", "艺人商务", "舆情值班",
@@ -909,7 +910,8 @@ NAME_STOPWORDS = frozenset({
 })
 # 当事方标签（甲方/乙方…）后面经常跟的是「甲方应于…」「甲方项目经理：」，
 # 因此这类标签必须紧跟冒号或括号，否则不作为人名引导词。
-_PARTY_LABELS = ("甲方", "乙方", "丙方", "丁方", "戊方")
+_PARTY_LABELS = ("甲方", "乙方", "丙方", "丁方", "戊方",
+                 "被上诉人", "被申请人", "上诉人", "原告", "被告", "第三人")
 _OTHER_LABELS = tuple(x for x in NAME_LABELS if x not in _PARTY_LABELS)
 
 _PAREN = r"(?:\s*[（(【][^)）】]{0,12}[）)】])?"
@@ -983,6 +985,28 @@ class PersonNameDetector:
                 out.append(RawMatch("PERSON_NAME", pos, pos + L, min(conf, 0.97), reasons, name,
                                     {"label": label, "surname_hit": surname_hit, "strict": strict}))
                 break
+        # 正文候选：姓名不必先在身份标签后出现。结合姓氏、句法边界和动作/称谓，
+        # 避免把所有以姓氏开头的普通中文词一律替换。
+        actions = r"(?:向|与|和|及|于|将|已|曾|应当|支付|收到|收取|转账|借款|签订|签署|提出|主张|表示|认为|要求|同意|拒绝|承认|否认|陈述|辩称|诉称|提交|提供|出具|负责|委托|购买|交付|返还|归还|承担|赔偿|随后|先生|女士|律师)"
+        left = r"(?:^|[，,。；;：:！？!?\n\s]|(?:向|与|和|及|由|经|通知|告知|要求|委托))"
+        pattern = re.compile(left + r"(?P<name>[\u4e00-\u9fff]{2,4})(?=" + actions + r"|[，,。；;：:！？!?\s]|$)")
+        for m in pattern.finditer(text):
+            name = m.group('name')
+            if not (name[0] in SURNAMES or name[:2] in COMPOUND_SURNAMES):
+                continue
+            if (any(word in name for word in NAME_STOPWORDS if len(word) >= 2)
+                    or name in NAME_LABELS or name in ORG_STOPWORDS):
+                continue
+            if any(word in name for word in ROLE_WORDS):
+                continue
+            # 没有动作/称谓时，只接受受「通知/告知/委托」引导的宾语。
+            prefix = m.group(0)[:-len(name)]
+            if not re.match(actions, text[m.end('name'):]) and not prefix.endswith(('通知', '告知', '委托')):
+                continue
+            start, end = m.span('name')
+            out.append(RawMatch('PERSON_NAME', start, end, 0.72,
+                                ['正文姓名候选：姓氏与动作/称谓语境匹配，需人工复核'], name,
+                                {'body_context': True}))
         return out
 
 
@@ -993,7 +1017,11 @@ class PersonNameDetector:
 ADDR_LABELS = ("通讯地址", "通信地址", "联系地址", "详细地址", "送达地址", "注册地址", "住所地",
                "住所", "住址", "地址", "经营场所", "所在地", "注册地", "办公地址", "邮寄地址")
 # 标签后可以是 冒号 / 等号 / 换行 / 紧接（合同表格常把标签和地址分两行）
-ADDR_LABEL_RE = re.compile("(?:" + "|".join(ADDR_LABELS) + r")\s*(?:[：:＝=]|\n)\s*")
+ADDR_LABEL_RE = re.compile(
+    "(?:" + "|".join(ADDR_LABELS) + r")\s*(?:[：:＝=]|\n)\s*"
+    # 判决书身份段常用「，住某省某市…」，无冒号；不匹配正文中任意的「住」。
+    + r"|(?:^|(?<=[，,。；;\n]))[ \t]*住[ \t]*(?=[\u4e00-\u9fff])"
+)
 ADDR_STOP = "，。；、,;；\n\t（）()【】[]：:"
 # 地址后面常紧跟下一个字段名，遇到就截断，避免把整行吞进来
 ADDR_NEXT_FIELD = ("邮编", "邮政编码", "电话", "手机", "邮箱", "电子邮箱", "传真",
@@ -1024,6 +1052,8 @@ class AddressDetector:
             if not re.search(r"[\u4e00-\u9fff]", value):
                 continue
             comps = sum(1 for c in ADDR_COMPONENTS if c in value)
+            if m.group(0).strip() == "住" and (comps < 2 or not re.search(r"省|自治区|市|区|县|镇|乡|村", value)):
+                continue
             conf = 0.55 + 0.1 * min(comps, 3)
             reasons = [f"地址标签「{m.group(0).strip()}」引导", f"含 {comps} 个行政区划/门牌要素"]
             if re.search(r"\d", value):
@@ -1253,8 +1283,10 @@ def build_detectors(custom_specs: Sequence[RegexSpec] = ()) -> List[Any]:
         # ---------------- 金额 ----------------
         RegexSpec(
             "AMOUNT",
-            r"(?:人民币|RMB|CNY|¥|￥)?\s?\d[\d,，]*(?:\.\d{1,2})?\s?(?:万元|亿元|元|圆)(?:整)?",
-            conf_ok=0.68, conf_weak=0.68,
+            r"(?<![\d.,，])(?:人民币|RMB|CNY|¥|￥)?[ \t]*"
+            r"(?:\d{1,3}(?:[,， \u00a0\u202f]\d{3})+|\d+)(?:\.\d+)?"
+            r"[ \t]*(?:万元|亿元|元|圆)(?:整)?",
+            conf_ok=0.78, conf_weak=0.78,
         ),
         RegexSpec(
             "AMOUNT",
@@ -1938,7 +1970,7 @@ class DetectorEngine:
         for m in matches:
             raw_value = nt.raw_slice(m.start, m.end)
             # 400 / 800 服务热线单独放行（如 800 800 8888 只含 0 和 8，会被误判成占位数据）
-            if is_placeholder(raw_value) and not (
+            if m.type_id != "AMOUNT" and is_placeholder(raw_value) and not (
                     m.type_id == "PHONE_LANDLINE" and HOTLINE_RE.match(raw_value.strip())):
                 continue
             if _norm_key(raw_value) in {_norm_key(a) for a in st.allowlist}:

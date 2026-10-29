@@ -15,7 +15,7 @@ from typing import Any, Dict
 
 APP_TITLE = "合同脱敏 / 还原"
 APP_SUBTITLE = "Contract Redactor"
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.4.1"
 
 esc = _html.escape
 

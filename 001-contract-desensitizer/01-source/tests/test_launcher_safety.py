@@ -11,6 +11,14 @@ class Launchers(unittest.TestCase):
    p=subprocess.run(['bash',str(script)],env=env,capture_output=True,text=True,timeout=10)
    self.assertEqual(p.returncode,1);self.assertIn('端口',p.stderr)
    with socket.create_connection(sentinel.getsockname(),timeout=2):pass
+ def test_windows_batch_uses_crlf_without_bom(self):
+  path=ROOT/'launcher/windows/Contract_Redactor.bat'
+  if not path.exists(): self.skipTest('Windows launcher excluded from this distribution')
+  raw=path.read_bytes()
+  self.assertTrue(raw.startswith(b'@echo off\r\n'))
+  self.assertNotIn(b'\n',raw.replace(b'\r\n',b''))
+  self.assertNotIn(b'\r',raw.replace(b'\r\n',b''))
+  raw.decode('utf-8')
  def test_windows_does_not_terminate_port_owner(self):
   path=ROOT/'launcher/windows/Contract_Redactor.bat'
   if not path.exists(): self.skipTest('Windows launcher intentionally excluded from the Mac-only ZIP')
