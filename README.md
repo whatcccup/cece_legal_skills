@@ -66,3 +66,8 @@ v1.4.1：Windows 的本版安装、更新和卸载，以及 Intel 物理机、�
 ## 开源与开发者
 
 MIT 许可。源码 ZIP 统一放在 [GitHub Releases](https://github.com/whatcccup/cece_legal_skills/releases)；官网和 SkillHub 面向普通用户提供安装软件入口。开发与构建入口见 `launcher/mac-bundled/README.md`、`launcher/windows-installer/README.md`，回归测试在 `tests/`。
+
+
+## 法律业务辅助技能
+
+新增 [法律业务辅助 Skill](002-legal-work-assistant/README.md)：1个主技能、24个子技能，支持按职业角色选取工作流，并在关键事实、处理方向与交付环节进行人工确认。

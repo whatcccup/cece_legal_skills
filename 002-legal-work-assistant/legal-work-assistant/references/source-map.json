@@ -1,0 +1,362 @@
+[
+  {
+    "episode": 1,
+    "title": "第①期：检察官用AI，为什么别人一次出稿你反复返工？",
+    "source_url": "https://mp.weixin.qq.com/s?__biz=MzA3NjMwMjYwNA==&mid=2656019229&idx=1&sn=d5c30fe9d0e45ac236b094ad61388e11&scene=21&poc_token=HP7S4mqjp2sxZrs9UoF3w1FlchdqJhLVbLfbA6hj",
+    "reference": "references/episode-01.md",
+    "modules": [
+      "prompt-design"
+    ],
+    "skill_paths": [
+      "subskill/prompt-design/SKILL.md"
+    ]
+  },
+  {
+    "episode": 2,
+    "title": "第②期：哪些文书AI只能改不能写？一张表说清人机边界",
+    "source_url": "https://mp.weixin.qq.com/s?__biz=MzA3NjMwMjYwNA==&mid=2656019236&idx=1&sn=0c793dc21ed540fdc845e8ce6cbb1d0e&scene=21&poc_token=HAvT4mqj0bSfTHQNE21_I8PVjF_hhJLu4XgeNR0Z",
+    "reference": "references/episode-02.md",
+    "modules": [
+      "document-review"
+    ],
+    "skill_paths": [
+      "subskill/document-review/SKILL.md"
+    ]
+  },
+  {
+    "episode": 3,
+    "title": "第③期：AI给的法条案号，为什么必须人工再查一遍？",
+    "source_url": "https://mp.weixin.qq.com/s?__biz=MzA3NjMwMjYwNA==&mid=2656019291&idx=1&sn=8d7f8fb241106bd13dddd43a5e854fae&scene=21&poc_token=HBzT4mqjuEcS9Y0QDQP0pm0KYLt09FNJ92AHraBW",
+    "reference": "references/episode-03.md",
+    "modules": [
+      "authority-check"
+    ],
+    "skill_paths": [
+      "subskill/authority-check/SKILL.md"
+    ]
+  },
+  {
+    "episode": 4,
+    "title": "第④期：一条好指令的六个零件，少一个都不好用",
+    "source_url": "https://mp.weixin.qq.com/s?__biz=MzA3NjMwMjYwNA==&mid=2656019292&idx=1&sn=bdc8416773fcfc6560ec89b3f94a9766&scene=21&poc_token=HC3T4mqj6j9pAgnL8YYpvq-iftujfZVpt94Ztfj0",
+    "reference": "references/episode-04.md",
+    "modules": [
+      "prompt-design"
+    ],
+    "skill_paths": [
+      "subskill/prompt-design/SKILL.md"
+    ]
+  },
+  {
+    "episode": 5,
+    "title": "第⑤期：为什么要让AI扮演资深的全国检察业务专家？",
+    "source_url": "https://mp.weixin.qq.com/s?__biz=MzA3NjMwMjYwNA==&mid=2656019330&idx=1&sn=ad25ba1fa906358c398b053724a7336e&scene=21&poc_token=HE_T4mqjlGVOyzetbKNbxSUABDPCimg6zqlgT02w",
+    "reference": "references/episode-05.md",
+    "modules": [
+      "prompt-design"
+    ],
+    "skill_paths": [
+      "subskill/prompt-design/SKILL.md"
+    ]
+  },
+  {
+    "episode": 6,
+    "title": "第⑥期：“根据相关法律规定”——指令中最常见的一句废话",
+    "source_url": "https://mp.weixin.qq.com/s?__biz=MzA3NjMwMjYwNA==&mid=2656019402&idx=1&sn=352157d9215a4bd46f992679e1b05741&scene=21&poc_token=HFvT4mqjqVDOgjwrs5W-fjb0Z9kITtXjcVjqhUKV",
+    "reference": "references/episode-06.md",
+    "modules": [
+      "prompt-design"
+    ],
+    "skill_paths": [
+      "subskill/prompt-design/SKILL.md"
+    ]
+  },
+  {
+    "episode": 7,
+    "title": "第⑦期：“处理一下”——AI最听不懂的指令",
+    "source_url": "https://mp.weixin.qq.com/s/AwsdthdCMEWAjiJys1Ap9Q",
+    "reference": "references/episode-07.md",
+    "modules": [
+      "prompt-design"
+    ],
+    "skill_paths": [
+      "subskill/prompt-design/SKILL.md"
+    ]
+  },
+  {
+    "episode": 8,
+    "title": "第⑧期：“写得详细一点”——AI最无法执行的一句要求",
+    "source_url": "https://mp.weixin.qq.com/s/M9Enxihe34-ytV-PU9u54Q",
+    "reference": "references/episode-08.md",
+    "modules": [
+      "prompt-design"
+    ],
+    "skill_paths": [
+      "subskill/prompt-design/SKILL.md"
+    ]
+  },
+  {
+    "episode": 9,
+    "title": "第⑨期：复杂任务为什么总是返工？三个方法让AI一次做对",
+    "source_url": "https://mp.weixin.qq.com/s/_LJLbrYhVv5_FYZPrcCMIw",
+    "reference": "references/episode-09.md",
+    "modules": [
+      "prompt-design"
+    ],
+    "skill_paths": [
+      "subskill/prompt-design/SKILL.md"
+    ]
+  },
+  {
+    "episode": 10,
+    "title": "第⑩期：三个不起眼但每天省半小时的技巧",
+    "source_url": "https://mp.weixin.qq.com/s/2WfYQPwev72KIKPwLqudYg",
+    "reference": "references/episode-10.md",
+    "modules": [
+      "material-intake"
+    ],
+    "skill_paths": [
+      "subskill/material-intake/SKILL.md"
+    ]
+  },
+  {
+    "episode": 11,
+    "title": "第⑪期：证据矛盾三级分类法",
+    "source_url": "https://mp.weixin.qq.com/s/tMm2sm6C9lBd7M1ZQi1JSA",
+    "reference": "references/episode-11.md",
+    "modules": [
+      "evidence-conflicts"
+    ],
+    "skill_paths": [
+      "subskill/evidence-conflicts/SKILL.md"
+    ]
+  },
+  {
+    "episode": 12,
+    "title": "第⑫期：证据三性核验两轮制",
+    "source_url": "https://mp.weixin.qq.com/s/vrQWdyYS_rKgZqXaCoXf4A",
+    "reference": "references/episode-12.md",
+    "modules": [
+      "evidence-review"
+    ],
+    "skill_paths": [
+      "subskill/evidence-review/SKILL.md"
+    ]
+  },
+  {
+    "episode": 13,
+    "title": "第⑬期：逮捕必要性六步法",
+    "source_url": "https://mp.weixin.qq.com/s/VZkeYYGfUbp-KJN5lxcuSg",
+    "reference": "references/episode-13.md",
+    "modules": [
+      "arrest-review"
+    ],
+    "skill_paths": [
+      "subskill/arrest-review/SKILL.md"
+    ]
+  },
+  {
+    "episode": 14,
+    "title": "第⑭期：起诉意见书全面审查",
+    "source_url": "https://mp.weixin.qq.com/s/mBWvB1qiukrsjJmQeHnmYQ",
+    "reference": "references/episode-14.md",
+    "modules": [
+      "prosecution-review"
+    ],
+    "skill_paths": [
+      "subskill/prosecution-review/SKILL.md"
+    ]
+  },
+  {
+    "episode": 15,
+    "title": "第⑮期：不起诉四类情形甄别",
+    "source_url": "https://mp.weixin.qq.com/s/3d6VYH8CjYVuXJkPWMcPbQ",
+    "reference": "references/episode-15.md",
+    "modules": [
+      "non-prosecution"
+    ],
+    "skill_paths": [
+      "subskill/non-prosecution/SKILL.md"
+    ]
+  },
+  {
+    "episode": 16,
+    "title": "第⑯期：量刑规范化五步测算",
+    "source_url": "https://mp.weixin.qq.com/s/mWYY9CeyGRNJXqvC-rzn-Q",
+    "reference": "references/episode-16.md",
+    "modules": [
+      "sentencing"
+    ],
+    "skill_paths": [
+      "subskill/sentencing/SKILL.md"
+    ]
+  },
+  {
+    "episode": 17,
+    "title": "第⑰期：翻供应对",
+    "source_url": "https://mp.weixin.qq.com/s/Yc6uhZWFR3jBgIl0hb9VCA",
+    "reference": "references/episode-17.md",
+    "modules": [
+      "statement-changes"
+    ],
+    "skill_paths": [
+      "subskill/statement-changes/SKILL.md"
+    ]
+  },
+  {
+    "episode": 18,
+    "title": "第⑱期：辩护预测与答辩",
+    "source_url": "https://mp.weixin.qq.com/s/xEdKfhoxBKsSAcAorjzHag",
+    "reference": "references/episode-18.md",
+    "modules": [
+      "hearing-preparation"
+    ],
+    "skill_paths": [
+      "subskill/hearing-preparation/SKILL.md"
+    ]
+  },
+  {
+    "episode": 19,
+    "title": "第⑲期：民事生效裁判监督",
+    "source_url": "https://mp.weixin.qq.com/s/CuZccgMpwF_k-26bKqjhig",
+    "reference": "references/episode-19.md",
+    "modules": [
+      "civil-supervision"
+    ],
+    "skill_paths": [
+      "subskill/civil-supervision/SKILL.md"
+    ]
+  },
+  {
+    "episode": 20,
+    "title": "第⑳期：虚假诉讼线索排查",
+    "source_url": "https://mp.weixin.qq.com/s/sOrLhJrmU7WMsqW2Nm6W7g",
+    "reference": "references/episode-20.md",
+    "modules": [
+      "false-litigation"
+    ],
+    "skill_paths": [
+      "subskill/false-litigation/SKILL.md"
+    ]
+  },
+  {
+    "episode": 21,
+    "title": "第㉑期：行政行为合法性六方面审查",
+    "source_url": "https://mp.weixin.qq.com/s/2MZDpJ5ZPxhA-caLOgbRbg",
+    "reference": "references/episode-21.md",
+    "modules": [
+      "administrative-review"
+    ],
+    "skill_paths": [
+      "subskill/administrative-review/SKILL.md"
+    ]
+  },
+  {
+    "episode": 22,
+    "title": "第㉒期：行政非诉执行六步核验法",
+    "source_url": "https://mp.weixin.qq.com/s/mowmWGNqrJzLhVdWFZeC-A",
+    "reference": "references/episode-22.md",
+    "modules": [
+      "nonlitigation-enforcement"
+    ],
+    "skill_paths": [
+      "subskill/nonlitigation-enforcement/SKILL.md"
+    ]
+  },
+  {
+    "episode": 23,
+    "title": "第㉓期：公益诉讼线索排查与立案审查",
+    "source_url": "https://mp.weixin.qq.com/s/ST3zdVheetDevRoYv_Fshg",
+    "reference": "references/episode-23.md",
+    "modules": [
+      "public-interest-clues"
+    ],
+    "skill_paths": [
+      "subskill/public-interest-clues/SKILL.md"
+    ]
+  },
+  {
+    "episode": 24,
+    "title": "第㉔期：行政公益诉讼诉前检察建议",
+    "source_url": "https://mp.weixin.qq.com/s/oYF-zNApXOZV7ajgmSJHmw",
+    "reference": "references/episode-24.md",
+    "modules": [
+      "prelitigation-recommendation"
+    ],
+    "skill_paths": [
+      "subskill/prelitigation-recommendation/SKILL.md"
+    ]
+  },
+  {
+    "episode": 25,
+    "title": "第㉕期：公益诉讼四大领域专项审查",
+    "source_url": "https://mp.weixin.qq.com/s/UgxhQ7v8cGc9Z_DnHcaZpA",
+    "reference": "references/episode-25.md",
+    "modules": [
+      "public-interest-sectors"
+    ],
+    "skill_paths": [
+      "subskill/public-interest-sectors/SKILL.md"
+    ]
+  },
+  {
+    "episode": 26,
+    "title": "第㉖期：控告申诉检察三大业务",
+    "source_url": "https://mp.weixin.qq.com/s/eXwk67QGcy_jILnFBxG9vw",
+    "reference": "references/episode-26.md",
+    "modules": [
+      "petitions-compensation"
+    ],
+    "skill_paths": [
+      "subskill/petitions-compensation/SKILL.md"
+    ]
+  },
+  {
+    "episode": 27,
+    "title": "第㉗期：数字检察——大数据法律监督模型设计与数据碰撞规则",
+    "source_url": "https://mp.weixin.qq.com/s/g9oXoAY34LHLxL2kmZx12w",
+    "reference": "references/episode-27.md",
+    "modules": [
+      "digital-supervision"
+    ],
+    "skill_paths": [
+      "subskill/digital-supervision/SKILL.md"
+    ]
+  },
+  {
+    "episode": 28,
+    "title": "第㉘期：检察听证全流程",
+    "source_url": "https://mp.weixin.qq.com/s/2_AmOfniRXCsGU9n5f5umQ",
+    "reference": "references/episode-28.md",
+    "modules": [
+      "hearing-session"
+    ],
+    "skill_paths": [
+      "subskill/hearing-session/SKILL.md"
+    ]
+  },
+  {
+    "episode": 29,
+    "title": "第㉙期：综合文稿三大件",
+    "source_url": "https://mp.weixin.qq.com/s/pAQF79G8XSVWboV-eHUcqQ",
+    "reference": "references/episode-29.md",
+    "modules": [
+      "office-writing"
+    ],
+    "skill_paths": [
+      "subskill/office-writing/SKILL.md"
+    ]
+  },
+  {
+    "episode": 30,
+    "title": "第㉚期：操作工具箱与办案全流程指令链",
+    "source_url": "https://mp.weixin.qq.com/s/Yq0uXuWBZXLnMLFT8ZDfFw",
+    "reference": "references/episode-30.md",
+    "modules": [
+      "case-workflow"
+    ],
+    "skill_paths": [
+      "subskill/case-workflow/SKILL.md"
+    ]
+  }
+]
